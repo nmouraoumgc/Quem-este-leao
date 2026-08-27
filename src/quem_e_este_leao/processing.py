@@ -54,6 +54,10 @@ __all__ = [
     "process_to_post",
     "sharpness",
     "strip_exif_save",
+    "try_ocr_boxes",
+    "detect_number_like_boxes",
+    "number_from_face",
+    "torso_has_wide_banner",
 ]
 
 
@@ -104,7 +108,10 @@ def geometry_fallback(height: int, width: int) -> tuple[Box, Box]:
 
 
 def chest_from_face(face: Box, width: int, height: int) -> Box:
-    """Zona do número no peito — inclui os lados (número no peito em close-up)."""
+    """Zona larga do peito — diagnóstico apenas. Em produção usamos número compacto + OCR.
+
+    Não deve ser aplicada às calças / virilha nem a patches de evento.
+    """
     y = face.y + int(face.h * 0.32)
     h = max(int(face.h * 1.05), 28)
     x = face.x - int(face.w * 0.55)
@@ -112,36 +119,178 @@ def chest_from_face(face: Box, width: int, height: int) -> Box:
     return Box(x, y, w, h).clip(width, height)
 
 
-def try_ocr_boxes(image_bgr: np.ndarray) -> list[Box]:
-    """OCR opcional (pytesseract). Falha de forma graciosa se o tesseract não existir."""
+def number_from_face(face: Box, width: int, height: int) -> Box:
+    """Caixa compacta do número de camisola (centro do peito), não um banner largo."""
+    nw = max(int(face.w * 0.58), 22)
+    nh = max(int(face.h * 0.52), 22)
+    x = int(face.x + face.w / 2 - nw / 2)
+    y = face.y + int(face.h * 0.90)
+    return Box(x, y, nw, nh).clip(width, height)
+
+
+def _torso_roi(face: Box, width: int, height: int) -> Box:
+    """Peito/abdomen alto — pára antes das calças / virilha; não inclui mangas."""
+    y0 = min(height - 1, face.y + int(face.h * 0.85))
+    y1 = min(int(height * 0.72), face.y + int(face.h * 3.1), height)
+    x0 = max(0, face.x - int(face.w * 0.22))
+    x1 = min(width, face.x + face.w + int(face.w * 0.22))
+    if y1 <= y0:
+        y1 = min(height, y0 + max(24, int(face.h * 0.8)))
+    return Box(x0, y0, max(1, x1 - x0), max(1, y1 - y0)).clip(width, height)
+
+
+def torso_has_wide_banner(image_bgr: np.ndarray, faces: Sequence[Box]) -> bool:
+    """Patch rectangular largo no peito (evento/patrocínio) — NÃO se mascara."""
+    h, w = image_bgr.shape[:2]
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY) if image_bgr.ndim == 3 else image_bgr
+    for face in faces:
+        roi_box = _torso_roi(face, w, h)
+        ys, xs = roi_box.as_slice()
+        roi = gray[ys, xs]
+        if roi.size < 400:
+            continue
+        blur = cv2.GaussianBlur(roi, (5, 5), 0)
+        edges = cv2.Canny(blur, 50, 140)
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3))
+        closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        roi_area = float(roi_box.area) or 1.0
+        for c in contours:
+            bx, by, bw, bh = cv2.boundingRect(c)
+            if bw < 24 or bh < 10:
+                continue
+            aspect = bw / max(bh, 1)
+            frac = (bw * bh) / roi_area
+            if aspect >= 2.0 and frac >= 0.05:
+                return True
+    return False
+
+
+def detect_number_like_boxes(image_bgr: np.ndarray, faces: Sequence[Box]) -> list[Box]:
+    """Blobs compactos de alto contraste tipo 1–2 dígitos no peito.
+
+    Letras de um banner (evento / publicidade) são pequenas e em fila — ignora-as.
+    Não desce à virilha.
+    """
+    h, w = image_bgr.shape[:2]
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY) if image_bgr.ndim == 3 else image_bgr
+    out: list[Box] = []
+    for face in faces:
+        roi_box = _torso_roi(face, w, h)
+        ys, xs = roi_box.as_slice()
+        roi = gray[ys, xs]
+        if roi.size < 100:
+            continue
+        blur = cv2.GaussianBlur(roi, (5, 5), 0)
+        thr = cv2.adaptiveThreshold(
+            blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5
+        )
+        variants = [thr, cv2.bitwise_not(thr)]
+        roi_h, roi_w = roi.shape[:2]
+        roi_area = float(roi_h * roi_w) or 1.0
+        chin = face.y + face.h
+        raw: list[Box] = []
+        seen: set[tuple[int, int, int, int]] = set()
+        for binary in variants:
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for c in contours:
+                bx, by, bw, bh = cv2.boundingRect(c)
+                if bh < 12 or bw < 6:
+                    continue
+                aspect = bw / max(bh, 1)
+                if aspect > 2.15 or aspect < 0.22:
+                    continue
+                # números de camisola ~ fracção da cara; letras de patch são bem menores
+                if bh < face.h * 0.20 or bh > face.h * 0.95:
+                    continue
+                # o tronco inteiro / jersey não é um número
+                if bw > roi_w * 0.70 or bw > face.w * 1.35:
+                    continue
+                if (bw * bh) / roi_area > 0.28:
+                    continue
+                abs_box = Box(roi_box.x + bx, roi_box.y + by, bw, bh)
+                cy = abs_box.y + abs_box.h / 2
+                if cy < chin + face.h * 0.08:
+                    continue
+                key = (bx // 4, by // 4, bw // 4, bh // 4)
+                if key in seen:
+                    continue
+                seen.add(key)
+                raw.append(abs_box)
+        kept = _drop_text_rows(raw)
+        for box in kept:
+            padded = box.pad(0.22, 0.16, w, h)
+            if _sane_extra_box(padded, w, h):
+                out.append(padded)
+    return out
+
+
+def _drop_text_rows(boxes: Sequence[Box]) -> list[Box]:
+    """3+ blobs alinhados horizontalmente = linha de texto, não número."""
+    remaining = list(boxes)
+    kept: list[Box] = []
+    while remaining:
+        seed = remaining.pop(0)
+        row = [seed]
+        rest: list[Box] = []
+        for other in remaining:
+            overlap = min(seed.y + seed.h, other.y + other.h) - max(seed.y, other.y)
+            if overlap >= 0.45 * min(seed.h, other.h):
+                row.append(other)
+            else:
+                rest.append(other)
+        remaining = rest
+        if len(row) >= 3:
+            continue
+        kept.extend(row)
+    return kept
+
+
+def _sane_extra_box(box: Box, width: int, height: int) -> bool:
+    area = box.area
+    img_area = float(width * height) or 1.0
+    if area < 40:
+        return False
+    if area / img_area > 0.32:
+        return False
+    # nunca mascarar virilha / pernas
+    if box.y > int(height * 0.78):
+        return False
+    return True
+
+
+def _dedupe_boxes(boxes: Sequence[Box]) -> list[Box]:
+    from quem_e_este_leao.validation import merge_boxes
+
+    return merge_boxes(boxes)
+
+
+def try_ocr_boxes(image_bgr: np.ndarray, player=None, faces: Sequence[Box] | None = None) -> list[Box]:
+    """OCR opcional: só nome/alcunha e número da camisola do jogador.
+
+    Não devolve patches de evento, patrocínio ou publicidade.
+    """
     try:
-        import pytesseract
-        from pytesseract import Output
+        from quem_e_este_leao.validation import identifying_boxes, tesseract_available
     except Exception:
         return []
-    try:
-        rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        data = pytesseract.image_to_data(rgb, output_type=Output.DICT, config="--psm 11")
-    except Exception:
-        log.info("OCR indisponível — a usar a zona do peito para número/nome.")
+    if not tesseract_available():
         return []
-    boxes: list[Box] = []
-    n = len(data.get("text", []))
-    for i in range(n):
-        text = (data["text"][i] or "").strip()
-        if not text:
-            continue
-        try:
-            conf = float(data.get("conf", [-1])[i])
-        except (IndexError, TypeError, ValueError):
-            conf = -1.0
-        if conf >= 0 and conf < 40:
-            continue
-        if text.isdigit() or (len(text) >= 3 and text.replace("-", "").isalpha() and text.isupper()):
-            boxes.append(
-                Box(int(data["left"][i]), int(data["top"][i]), int(data["width"][i]), int(data["height"][i]))
-            )
-    return boxes
+    try:
+        h, w = image_bgr.shape[:2]
+        boxes = list(identifying_boxes(image_bgr, player))
+        for face in faces or ():
+            roi = _torso_roi(face, w, h)
+            ys, xs = roi.as_slice()
+            crop = image_bgr[ys, xs]
+            if crop.size < 80:
+                continue
+            for b in identifying_boxes(crop, player):
+                boxes.append(Box(roi.x + b.x, roi.y + b.y, b.w, b.h).clip(w, h))
+        return [b for b in boxes if _sane_extra_box(b, w, h)]
+    except Exception:
+        log.info("OCR indisponível — a usar a heurística do número.")
+        return []
 
 
 def pixelate(img: np.ndarray, box: Box, block: int) -> None:
@@ -249,6 +398,8 @@ def anonymize(
     forced_faces: list[Box] | None = None,
     abort_if_recognizable: bool = True,
     allow_geometry_fallback: bool = False,
+    player=None,
+    ocr_enabled: bool = True,
 ) -> AnonymizeResult:
     params = PARAMS[difficulty]
     h, w = image_bgr.shape[:2]
@@ -282,11 +433,17 @@ def anonymize(
     ]
 
     if params.hide_name_number:
-        extra.extend(chest_from_face(f, w, h) for f in core_faces)
-        extra.extend(try_ocr_boxes(work))
+        # Só nome/número do jogador. Patches de evento / publicidade ficam.
+        if ocr_enabled:
+            extra.extend(try_ocr_boxes(work, player, core_faces))
+        extra.extend(detect_number_like_boxes(work, core_faces))
+        extra = [b for b in _dedupe_boxes(extra) if _sane_extra_box(b, w, h)]
+        if not extra and not torso_has_wide_banner(work, core_faces):
+            extra.extend(number_from_face(f, w, h) for f in core_faces)
+            extra = [b for b in extra if _sane_extra_box(b, w, h)]
 
-    # HARD: só caixas de texto OCR (já em extra). NÃO tapar o terço inferior
-    # (era isto que pixelizava calções / virilha).
+    # HARD: só caixas de nome/número. NÃO tapar o terço inferior
+    # (era isto que pixelizava calções / virilha). NÃO tapar banners de evento.
 
     before = sharpness(work, core_faces)
 
@@ -492,6 +649,8 @@ def process_to_post(
         forced_faces=forced_faces,
         abort_if_recognizable=abort_if_recognizable,
         allow_geometry_fallback=allow_geometry_fallback,
+        player=player,
+        ocr_enabled=ocr_enabled,
     )
     if second_pass:
         from quem_e_este_leao.validation import validate_anonymized

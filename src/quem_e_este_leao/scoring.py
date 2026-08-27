@@ -110,6 +110,7 @@ def score_image(
     *,
     model_path: Path | None = None,
     min_side: int = 240,
+    player=None,
 ) -> ImageScore:
     img = _decode(path)
     if img is None:
@@ -200,6 +201,28 @@ def score_image(
     else:
         breakdown["text"] = 0.0
 
+    # Nome/número do jogador: penaliza (preferir foto limpa) mas NÃO rejeita —
+    # o processamento ainda pode tapar. Evento/patrocínio/publicidade: sem penalização extra.
+    if player is not None:
+        try:
+            from quem_e_este_leao.validation import (
+                identity_leaked,
+                ocr_full_text,
+                shirt_number_leaked,
+                tesseract_available,
+            )
+
+            if tesseract_available():
+                ocr = ocr_full_text(img)
+                if ocr and identity_leaked(ocr, player):
+                    breakdown["identity_text"] = -10.0
+                    total -= 10.0
+                if ocr and shirt_number_leaked(ocr, player.shirt_numbers):
+                    breakdown["shirt_number"] = -4.0
+                    total -= 4.0
+        except Exception:  # noqa: BLE001
+            pass
+
     return ImageScore(
         total=float(total),
         breakdown=breakdown,
@@ -215,11 +238,12 @@ def rank_candidates(
     *,
     model_path: Path | None = None,
     min_score: float = 35.0,
+    player=None,
 ) -> list[tuple[object, ImageScore]]:
     """Ordena candidatos aceites (melhor primeiro). Rejeitados ficam de fora."""
     ranked: list[tuple[object, ImageScore]] = []
     for path, meta in paths_and_meta:
-        sc = score_image(path, model_path=model_path)
+        sc = score_image(path, model_path=model_path, player=player)
         log.info(
             "Candidato %s: score=%.1f reject=%s",
             path.name,

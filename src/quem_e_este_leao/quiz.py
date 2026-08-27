@@ -76,6 +76,7 @@ def _try_candidates(
         pairs,
         model_path=settings.yunet_model_path,
         min_score=settings.min_image_score,
+        player=player,
     )
     # Sintético só entra se explicitamente permitido; mesmo ranqueado, em produção não.
     if not allow_synthetic:
@@ -118,7 +119,7 @@ def _try_candidates(
         # Ainda assim tentar locais pontuados abaixo do mínimo? Não — fiabilidade > velocidade.
         reasons = []
         for c in candidates:
-            sc = score_image(c.path, model_path=settings.yunet_model_path)
+            sc = score_image(c.path, model_path=settings.yunet_model_path, player=player)
             reasons.extend(sc.reject_reasons)
         log.info("Nenhum candidato passou a pontuação (%s).", ",".join(sorted(set(reasons))) or "vazio")
 
