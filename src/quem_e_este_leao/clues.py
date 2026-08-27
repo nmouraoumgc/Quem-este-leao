@@ -158,10 +158,46 @@ def candidate_clues(player: Player) -> list[str]:
     return unique
 
 
+def _same_nationality(player: Player, other: Player) -> bool:
+    return player.nationality == other.nationality
+
+
+def _same_position(player: Player, other: Player) -> bool:
+    return player.position == other.position
+
+
+def combo_uniquely_identifies(
+    player: Player,
+    pool: Sequence[Player],
+    *,
+    nationality: bool = False,
+    position: bool = False,
+    number: int | None = None,
+    academy: bool = False,
+) -> bool:
+    """True se a combinação de atributos só casa com este jogador no pool."""
+    if not pool:
+        return False
+
+    def matches(other: Player) -> bool:
+        if nationality and other.nationality != player.nationality:
+            return False
+        if position and other.position != player.position:
+            return False
+        if number is not None and number not in other.shirt_numbers:
+            return False
+        if academy and not other.academy:
+            return False
+        return True
+
+    return sum(1 for other in pool if matches(other)) <= 1
+
+
 def generate_clue(
     player: Player,
     difficulty: Difficulty,
     rng: random.Random | None = None,
+    pool: Sequence[Player] | None = None,
 ) -> str:
     rng = rng or random.Random()
     candidates = candidate_clues(player)
@@ -186,23 +222,41 @@ def generate_clue(
             hard_preferred.append(c)
         if "internacional" in c:
             medium_preferred.append(c)
+        if "melhor marcador" in c or "Bota de Ouro" in c or "jogador do ano" in c:
+            hard_preferred.append(c)
 
     if difficulty is Difficulty.EASY:
-        pool = easy_preferred or candidates
+        chosen_pool = easy_preferred or candidates
     elif difficulty is Difficulty.HARD:
-        pool = hard_preferred or medium_preferred or candidates
+        chosen_pool = hard_preferred or medium_preferred or candidates
     else:
-        pool = medium_preferred or [c for c in candidates if c not in easy_preferred] or candidates
+        chosen_pool = medium_preferred or [c for c in candidates if c not in easy_preferred] or candidates
 
-    # Garantir que a pista fácil junta contexto simples se a dificuldade é EASY
+    # Combinação nacionalidade+posição só em EASY se NÃO identificar um único jogador.
     if difficulty is Difficulty.EASY and _nationality_clue(player) and _position_clue(player):
         combo = f"{_nationality_clue(player)} {_position_clue(player)}"
-        if not contains_identity(combo, player):
-            # 50% das vezes a pista fácil é a combinação, senão uma só
+        unique = combo_uniquely_identifies(
+            player, pool or (), nationality=True, position=True
+        )
+        if not contains_identity(combo, player) and not unique:
             if rng.random() < 0.55:
                 return combo.strip()
 
-    chosen = rng.choice(pool)
+    # Números únicos (ex. 42) não entram em EASY/MEDIUM.
+    if pool and difficulty is not Difficulty.HARD:
+        filtered = []
+        for c in chosen_pool:
+            skip = False
+            if c.startswith("Usa/usou o número") and player.shirt_numbers:
+                n = player.shirt_numbers[0]
+                if combo_uniquely_identifies(player, pool, number=n):
+                    skip = True
+            if not skip:
+                filtered.append(c)
+        if filtered:
+            chosen_pool = filtered
+
+    chosen = rng.choice(chosen_pool)
     if contains_identity(chosen, player):
         safe = [c for c in candidates if not contains_identity(c, player)]
         chosen = rng.choice(safe) if safe else "Vestiu de verde e branco em Alvalade."

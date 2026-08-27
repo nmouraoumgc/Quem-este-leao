@@ -37,7 +37,14 @@ CREATE TABLE IF NOT EXISTS quizzes (
     status TEXT NOT NULL CHECK (status IN ('draft', 'published', 'revealed')),
     difficulty TEXT NOT NULL CHECK (difficulty IN ('easy', 'medium', 'hard')),
     image_attribution TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    image_source TEXT,
+    image_kind TEXT NOT NULL DEFAULT 'REAL',
+    published_at TEXT,
+    reveal_at TEXT,
+    revealed_at TEXT,
+    x_quiz_post_id TEXT,
+    x_reveal_post_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_quizzes_status_reveal ON quizzes (status, reveal_dt);
@@ -47,6 +54,7 @@ CREATE TABLE IF NOT EXISTS quiz_answers (
     quiz_id TEXT PRIMARY KEY,
     correct_answer TEXT NOT NULL,
     interesting_fact TEXT,
+    player_name TEXT,
     FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON DELETE CASCADE
 );
 
@@ -59,3 +67,16 @@ CREATE TABLE IF NOT EXISTS publications (
     published_at TEXT NOT NULL,
     FOREIGN KEY (quiz_id) REFERENCES quizzes (id) ON DELETE CASCADE
 );
+
+-- Impede double-post em retries.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_publications_quiz_kind
+    ON publications (quiz_id, kind);
+
+CREATE TABLE IF NOT EXISTS scheduler_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    last_daily_post_date TEXT,
+    updated_at TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO scheduler_state (id, last_daily_post_date, updated_at)
+VALUES (1, NULL, datetime('now'));

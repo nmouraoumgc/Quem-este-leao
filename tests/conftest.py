@@ -39,4 +39,5 @@ def tmp_settings(tmp_path: Path, project_root: Path) -> Settings:
         wikimedia_enabled=False,
         abort_if_recognizable=False,
         ocr_enabled=False,
+        allow_synthetic=True,
     )

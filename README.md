@@ -3,15 +3,17 @@
 Bot de quizzes visuais para redes sociais do **Sporting CP** / **#SpacesSporting**.
 Todo o texto visível está em **português europeu (pt-PT)** — nunca brasileiro.
 
-Fluxo: escolhe um jogador da base → obtém uma fotografia reutilizável →
-desfoca **só a cara** (e nome/número quando visíveis) → gera uma pista fácil
-sem identificar o jogador → publica o post. A revelação sai depois de 30 min,
-1 hora (omissão) ou 3 horas.
+Fluxo de produção:
+
+`SELECT PLAYER → FIND REAL PHOTOS (vários candidatos) → VALIDATE/SCORE → ANONYMIZE → CLUE → GRAPHIC → SECOND-PASS → SAVE → (X) → WAIT → REVEAL`
+
+A fiabilidade da escolha e da anonimização da fotografia vale mais do que a velocidade.
+Um falso negativo (rejeitar a imagem) é preferível a publicar um jogador reconhecível.
 
 ## Requisitos
 
 - Python 3.11+ (testado em 3.13)
-- Linux (OpenCV headless; Haar cascade incluído no `opencv-python-headless`)
+- Linux (OpenCV headless; detector DNN **YuNet** em `assets/models/`, Haar como fallback)
 - Opcional: Tesseract OCR (`tesseract-ocr`) para censurar números/nomes no equipamento
 - Opcional: credenciais da API v2 do X/Twitter
 
@@ -38,53 +40,96 @@ Ver `.env.example`. Variáveis com prefixo `QEEL_`:
 | `QEEL_REVEAL_DELAY` | `1h` | `30min` / `1h` / `3h` |
 | `QEEL_TIMEZONE` | `Europe/Lisbon` | |
 | `QEEL_DRY_RUN` | `true` | Forçado a `true` se não houver chaves X |
-| `QEEL_WIKIMEDIA_ENABLED` | `true` | Pesquisa Commons (licenças reutilizáveis) |
+| `QEEL_POST_AT` | `12:00` | Hora local do post diário |
+| `QEEL_WIKIMEDIA_ENABLED` | `true` | Pesquisa Commons (vários candidatos) |
+| `QEEL_WIKIMEDIA_SEARCH_LIMIT` | `6` | Máximo de ficheiros Commons a descarregar |
+| `QEEL_MAX_IMAGE_CANDIDATES` | `8` | Local + Wikimedia + (opcional) sintético |
+| `QEEL_MIN_IMAGE_SCORE` | `35` | Abaixo disto a foto é descartada |
+| `QEEL_ALLOW_SYNTHETIC` | `false` | **Produção nunca usa sintético** |
+| `QEEL_OCR_ENABLED` | `true` | Tesseract se estiver instalado |
+| `QEEL_ABORT_IF_RECOGNIZABLE` | `true` | Segunda passagem rejeita fugas de identidade |
 | `QEEL_X_API_KEY` … | vazio | Sem isto, só pré-visualização local |
 
 **Direitos de imagem.** A Wikimedia Commons é a fonte preferida. Fotografias
 locais extra só podem ser adicionadas se o operador tiver direitos (licença
 reutilizável, autorização, ou arquivo próprio). Fonte e créditos guardam-se
 **internamente** (manifesto / coluna `image_attribution`) — nunca no nome
-público do ficheiro.
+público do ficheiro. `image_kind` é `REAL` ou `SYNTHETIC_TEST`.
 
 ## Gerar um quiz (pré-visualização)
 
 ```bash
 source .venv/bin/activate
-quem-e-este-leao generate --difficulty medium --reveal-in 1h
+quem-e-este-leao generate --difficulty medium --reveal-in 1h --dry-run
+# equivalente:
+quem-e-este-leao preview --difficulty medium
+# jogador concreto (slug interno):
+quem-e-este-leao generate --player luis-figo --dry-run
 ```
 
 Ou:
 
 ```bash
-python -m quem_e_este_leao generate -d medium
+python -m quem_e_este_leao generate -d medium --dry-run
 ```
 
 Saída em `examples/` (dry-run):
 
 - `quiz_<hex>.jpg` — quadro 1080×1080, EXIF limpo, nome opaco
 - `quiz_<hex>_caption.txt` — legenda pública (sem o nome)
-- `quiz_<hex>_ANSWERS_NAO_PUBLICAR.txt` — **interno**, não publicar
+- `quiz_<hex>_ANSWERS_NAO_PUBLICAR.txt` — **interno**, não publicar / não commitar
 
 ### Outros comandos
 
 ```bash
-quem-e-este-leao publish --quiz-id …        # rascunho → local ou X
-quem-e-este-leao reveal --quiz-id …
-quem-e-este-leao run-once                   # gera + publica já
-quem-e-este-leao reveal-due                 # para cron
-quem-e-este-leao serve-scheduler            # APScheduler em primeiro plano
+quem-e-este-leao publish QUIZ_ID          # rascunho → local ou X (idempotente)
+quem-e-este-leao reveal QUIZ_ID
+quem-e-este-leao run-once                 # gera + publica já
+quem-e-este-leao reveal-due               # para cron (revelações devidas no SQLite)
+quem-e-este-leao serve-scheduler          # post diário + revelações
+quem-e-este-leao players
+quem-e-este-leao status
+quem-e-este-leao reset --yes              # reinicia o ciclo de rotação
 quem-e-este-leao list-formats
 ```
 
-## Dificuldade
+`--quiz-id` continua a ser aceite em `publish` / `reveal`. `--reveal-in` mantém-se no `generate`.
 
-- **easy** — desfoque moderado da cara; pista mais directa; mais contexto visível
-- **medium** (omissão) — desfoque forte; nome e número escondidos; pista menos óbvia
-- **hard** — anonimização muito forte; cara, nome, número e outros detalhes; pista subtil
+## Pipeline de imagem
 
-Se, em medium/hard, o processamento não conseguir esconder a cara, o candidato
-é **abortado** e tenta-se outra fotografia/jogador — nunca se publica uma imagem reconhecível.
+1. Recolhe **vários** candidatos (foto local curada + Wikimedia ficheiro conhecido + pesquisa Commons).
+2. Pontua: resolução, cara detectada, ocupação, kit verde-e-branco, jogador dominante, crop; penaliza multi-jogador, cara minúscula, ficheiro corrupto, texto excessivo.
+3. Tenta o melhor. Se a anonimização ou a 2.ª passagem falhar, passa ao seguinte. Se nenhum for seguro, **descarta o jogador** e escolhe outro.
+4. Sintético **só** com `QEEL_ALLOW_SYNTHETIC=true` (testes). Produção nunca recorre a geometria «à sorte».
+
+### Detecção de cara
+
+YuNet (OpenCV DNN, modelo Apache-2.0 em `assets/models/`). Haar Cascade só como fallback.
+Frontal, perfil, rotações leves, acção e luz variável. Se nenhum detector for fiável: **rejeitar**.
+
+### Anonimização
+
+Pixelização + desfoque oval com pluma (não um rectângulo preto). Cara irreconhecível;
+número e nome tapados quando a dificuldade o exige. O corpo, o equipamento, o estádio
+e a acção mantêm-se. A dificuldade controla a força:
+
+- **easy** — máscara moderada; pista mais directa
+- **medium** (omissão) — máscara forte; nome/número escondidos
+- **hard** — máscara extrema; pista subtil
+
+### Segunda passagem
+
+O detector volta a correr na imagem já processada. Cara residual com alta confiança,
+ou OCR (Tesseract) a ler o nome/alcunha/número → rejeitar e tentar o próximo candidato.
+Nunca se publica só porque o processamento não lançou uma excepção.
+
+## Dificuldade (pistas)
+
+- **easy** — nacionalidade / posição / facto simples (sem combinação única que identifique um só jogador)
+- **medium** — internacional / título Sporting / academia
+- **hard** — época / facto menos óbvio
+
+As pistas são validadas contra tokens de identidade (nome, partes, alcunhas únicas).
 
 ## Rotação
 
@@ -94,23 +139,47 @@ um novo ciclo. Estado em SQLite (`players_used`, `rotation_state`).
 ## Identidade — regras para não vazar a resposta
 
 1. O nome do jogador **não** vai na legenda inicial, na pista, no EXIF, nem no nome do ficheiro (`quiz_<hex>.jpg`).
-2. A resposta vive numa tabela `quiz_answers` **separada** e num ficheiro `_ANSWERS_NAO_PUBLICAR.txt`.
+2. A resposta vive numa tabela `quiz_answers` **separada** (`correct_answer` / `player_name`) e num ficheiro `_ANSWERS_NAO_PUBLICAR.txt`.
 3. Logs: o nome só aparece em **DEBUG**, nunca em INFO.
 4. Alcunhas únicas (Pote, CR7, …) estão em `nicknames` e são bloqueadas nas pistas.
 5. Não usar o nome do jogador em commits, ramos git, ou pastas públicas.
 
-## Cron
+## Publicação no X
+
+A arquitectura Tweepy mantém-se. Sem credenciais, `QEEL_DRY_RUN` fica `true` e só há pré-visualização local.
+
+A publicação é **idempotente**: `UNIQUE(quiz_id, kind)` em `publications` + verificação de `status`.
+Um retry nunca cria um segundo post. Erros de API / auth / rate-limit / media / rede são classificados e não deixam o estado inconsistente a meio (o post só é marcado depois do tweet).
+
+Passos restantes para produção no X:
+
+1. Criar uma app no [portal de developer do X](https://developer.x.com/) com permissão de escrita e upload de media.
+2. Preencher `QEEL_X_API_KEY`, `QEEL_X_API_SECRET`, `QEEL_X_ACCESS_TOKEN`, `QEEL_X_ACCESS_TOKEN_SECRET` (e opcionalmente o bearer) no `.env`.
+3. `QEEL_DRY_RUN=false`
+4. Validar com `quem-e-este-leao generate --dry-run` e inspeccionar `examples/quiz_*.jpg`.
+5. Publicar: `quem-e-este-leao publish QUIZ_ID --no-dry-run`
+6. Revelar: `quem-e-este-leao reveal QUIZ_ID --no-dry-run` ou deixar o agendador / cron `reveal-due`.
+
+## Agendador
+
+Os trabalhos devidos **vivem no SQLite** (`reveal_at` + `status`, e a data do último post diário) — um restart não os perde.
+
+```bash
+# primeiro plano (systemd / docker)
+quem-e-este-leao serve-scheduler
+```
+
+- Post diário à hora `QEEL_POST_AT` (omissão 12:00, fuso `Europe/Lisbon`).
+- Revelações a cada 5 minutos, mais um catch-up no arranque.
+
+### Cron (alternativa)
 
 ```cron
-# a cada 5 minutos — fuso da máquina deve ser Europe/Lisbon ou usar TZ
 */5 * * * *  cd /opt/quem-e-este-leao && .venv/bin/quem-e-este-leao reveal-due
+0 12 * * *   cd /opt/quem-e-este-leao && .venv/bin/quem-e-este-leao run-once --difficulty medium --reveal-in 1h
 ```
 
-Um ciclo diário de publicação:
-
-```cron
-0 18 * * *  cd /opt/quem-e-este-leao && .venv/bin/quem-e-este-leao run-once --difficulty medium --reveal-in 1h
-```
+O fuso da máquina deve ser Europe/Lisbon ou usar `TZ`.
 
 ## systemd
 
@@ -146,21 +215,24 @@ docker compose run --rm quiz quem-e-este-leao run-once --dry-run
 | `quem_usava_esta_camisola` | Esqueleto |
 | `quem_e_este_treinador` | Esqueleto |
 
-Os esqueletos existem para extensão futura (arquivo de golos, treinadores, camisolas históricas).
-
 ## Testes
 
 ```bash
 source .venv/bin/activate
-pytest
+pytest -q
 ```
 
-Cobertura mínima: rotação, pistas sem nome, nomes de ficheiro opacos, EXIF limpo,
-força de desfoque por dificuldade, revelação devida.
+Cobertura: rotação, pistas sem nome / combinação única, nomes de ficheiro opacos,
+EXIF limpo, força de desfoque por dificuldade, detecção YuNet, pontuação de imagens,
+anonimização (fixture sintética `tests/fixtures/` em modo `SYNTHETIC_TEST`),
+segunda passagem, transições SQLite, publicação idempotente (X mockado),
+agendador (revelação devida + post diário), e2e dry-run com fotografia real de `assets/samples`.
+Testes de OCR saltam se o Tesseract não estiver instalado.
 
 ## Licença
 
 MIT. As fotografias de amostra em `assets/samples/` têm licenças próprias
 (CC BY / CC BY-SA / domínio público) — ver `assets/samples/ATTRIBUTION.md`.
+O modelo YuNet em `assets/models/` é Apache-2.0 (OpenCV Zoo).
 O emblema oficial do Sporting CP **não** é reproduzido; o branding do post é
 uma barra verde `#008057` com a hashtag #SpacesSporting.
