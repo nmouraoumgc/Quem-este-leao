@@ -10,11 +10,15 @@ Fluxo de produção:
 A fiabilidade da escolha e da anonimização da fotografia vale mais do que a velocidade.
 Um falso negativo (rejeitar a imagem) é preferível a publicar um jogador reconhecível.
 
+As fotografias **têm de ser da época em que o jogador representou o Sporting CP**
+(camisola verde-e-branca / Alvalade). Fotos de outros clubes, da seleção, ou de
+jogos de caridade (mesmo com o jogador visível) são rejeitadas.
+
 ## Requisitos
 
 - Python 3.11+ (testado em 3.13)
 - Linux (OpenCV headless; detector DNN **YuNet** em `assets/models/`, Haar como fallback)
-- Opcional: Tesseract OCR (`tesseract-ocr`) para censurar números/nomes no equipamento
+- Recomendado em produção: Tesseract OCR (`tesseract-ocr`, `tesseract-ocr-por`, `tesseract-ocr-eng`) para tapar **nome** e **número de camisola** do jogador
 - Opcional: credenciais da API v2 do X/Twitter
 
 ## Instalação
@@ -52,9 +56,10 @@ Ver `.env.example`. Variáveis com prefixo `QEEL_`:
 
 **Direitos de imagem.** A Wikimedia Commons é a fonte preferida. Fotografias
 locais extra só podem ser adicionadas se o operador tiver direitos (licença
-reutilizável, autorização, ou arquivo próprio). Fonte e créditos guardam-se
-**internamente** (manifesto / coluna `image_attribution`) — nunca no nome
-público do ficheiro. `image_kind` é `REAL` ou `SYNTHETIC_TEST`.
+reutilizável, autorização, ou arquivo próprio) **e** se mostrarem o jogador
+na época Sporting. Fonte e créditos guardam-se **internamente** (manifesto /
+coluna `image_attribution`) — nunca no nome público do ficheiro. `image_kind`
+é `REAL` ou `SYNTHETIC_TEST`.
 
 ## Gerar um quiz (pré-visualização)
 
@@ -98,8 +103,11 @@ quem-e-este-leao list-formats
 ## Pipeline de imagem
 
 1. Recolhe **vários** candidatos (foto local curada + Wikimedia ficheiro conhecido + pesquisa Commons).
-2. Pontua: resolução, cara detectada, ocupação, kit verde-e-branco, jogador dominante, crop; penaliza multi-jogador, cara minúscula, ficheiro corrupto, texto excessivo.
-3. Tenta o melhor. Se a anonimização ou a 2.ª passagem falhar, passa ao seguinte. Se nenhum for seguro, **descarta o jogador** e escolhe outro.
+   A pesquisa **tem de** incluir Sporting CP e os `years_at_sporting` (ex.: «Luís Figo Sporting CP 1995»).
+   Ficheiros Commons de outro clube/ano (ex.: Gyökeres 2018) não entram como candidato de produção.
+2. Pontua: resolução, cara detectada, ocupação, **kit verde-e-branco (requisito)**, jogador dominante, crop; penaliza multi-jogador, cara minúscula, ficheiro corrupto, texto excessivo.
+   Sem verde Sporting no tronco (`not_sporting_kit`) a foto é **rejeitada**. Não se publicam camisolas de outros clubes nem jogos de caridade.
+3. Tenta o melhor. Se a anonimização ou a 2.ª passagem falhar, passa ao seguinte. Se nenhum for seguro, **descarta o jogador** e escolhe outro. Nunca recua para uma foto fora da época Sporting.
 4. Sintético **só** com `QEEL_ALLOW_SYNTHETIC=true` (testes). Produção nunca recorre a geometria «à sorte».
 
 ### Detecção de cara
@@ -110,8 +118,11 @@ Frontal, perfil, rotações leves, acção e luz variável. Se nenhum detector f
 ### Anonimização
 
 Pixelização + desfoque oval com pluma (não um rectângulo preto). Cara irreconhecível;
-número e nome tapados quando a dificuldade o exige. O corpo, o equipamento, o estádio
-e a acção mantêm-se. A dificuldade controla a força:
+número de camisola e nome/apelido do jogador tapados quando a dificuldade o exige
+(medium/hard), via OCR (Tesseract) e heurística compacta no peito. **Não** se
+censuram publicidade, logos de patrocínio, patches de evento, datas nem nomes de
+estádio — «MATCH AGAINST POVERTY» e afins podem ficar visíveis. O corpo, o
+equipamento, o estádio e a acção mantêm-se. A dificuldade controla a força:
 
 - **easy** — máscara moderada; pista mais directa
 - **medium** (omissão) — máscara forte; nome/número escondidos
@@ -119,9 +130,12 @@ e a acção mantêm-se. A dificuldade controla a força:
 
 ### Segunda passagem
 
-O detector volta a correr na imagem já processada. Cara residual com alta confiança,
-ou OCR (Tesseract) a ler o nome/alcunha/número → rejeitar e tentar o próximo candidato.
-Nunca se publica só porque o processamento não lançou uma excepção.
+O detector e o OCR voltam a correr na fotografia já processada (antes da moldura).
+Cara residual com alta confiança, nome/alcunha do jogador ainda legível, ou número
+de camisola ainda legível → rejeitar e tentar o próximo candidato. Texto de evento,
+patrocínio ou publicidade **não** rejeita. Nunca se publica só porque o
+processamento não lançou uma excepção. Sem Tesseract, a segunda passagem valida
+só a cara; por isso o Tesseract é recomendado em produção.
 
 ## Dificuldade (pistas)
 
@@ -223,11 +237,12 @@ pytest -q
 ```
 
 Cobertura: rotação, pistas sem nome / combinação única, nomes de ficheiro opacos,
-EXIF limpo, força de desfoque por dificuldade, detecção YuNet, pontuação de imagens,
+EXIF limpo, força de desfoque por dificuldade, detecção YuNet, pontuação de imagens
+(rejeição de camisola não-Sporting), pesquisa Commons da época Alvalade,
 anonimização (fixture sintética `tests/fixtures/` em modo `SYNTHETIC_TEST`),
 segunda passagem, transições SQLite, publicação idempotente (X mockado),
 agendador (revelação devida + post diário), e2e dry-run com fotografia real de `assets/samples`.
-Testes de OCR saltam se o Tesseract não estiver instalado.
+Testes de OCR correm quando o Tesseract está instalado (saltam só se faltar o binário).
 
 ## Licença
 

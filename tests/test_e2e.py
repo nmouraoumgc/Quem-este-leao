@@ -10,7 +10,7 @@ from quem_e_este_leao.quiz import generate_quiz
 
 def test_e2e_dry_run_known_player_real_photo(tmp_settings, tmp_path) -> None:
     players = load_players(tmp_settings.players_yaml)
-    player = get_player(players, "luis-figo")
+    player = get_player(players, "nuno-santos")
     assert player.local_image
     quiz = generate_quiz(
         tmp_settings,

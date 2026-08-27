@@ -54,9 +54,8 @@ def test_number_region_is_masked_on_fixture(project_root: Path) -> None:
     img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
     r = anonymize(img, Difficulty.MEDIUM, forced_faces=[face], abort_if_recognizable=False)
     assert r.extra_boxes, "MEDIUM deve mascarar a zona do número"
-    chest = r.extra_boxes[0]
-    before = sharpness(img, [chest])
-    after = sharpness(r.image_bgr, [chest])
+    before = sharpness(img, r.extra_boxes)
+    after = sharpness(r.image_bgr, r.extra_boxes)
     if before > 5:
         assert after < before * 0.5
 

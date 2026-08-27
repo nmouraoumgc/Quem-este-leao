@@ -1,7 +1,9 @@
 # Base de jogadores do Sporting CP — factos públicos verificados.
 # NÃO inventar estatísticas. Os alcunhas entram em nicknames e NUNCA nas pistas.
 # image_search_query / wikimedia_filename / local_image: aquisição interna.
-# Operadores: só adicionar imagens para as quais tenham direitos.
+# A pesquisa de fotos inclui Sporting CP + anos em Alvalade. Ficheiros Commons
+# de outro clube/ano não são candidatos de produção. Operadores: só adicionar
+# imagens para as quais tenham direitos, da época Sporting (kit verde-e-branco).
 
 players:
   - id: viktor-gyokeres
@@ -17,9 +19,9 @@ players:
     fun_facts:
       - Chegou ao Sporting por uma transferência recorde do clube na altura.
       - Recebeu a Guldbollen, prémio de futebolista sueco do ano, em 2024.
-    image_search_query: "Viktor Gyökeres Sporting CP football"
-    wikimedia_filename: "Viktor Gyökeres 2018.jpg"
-    local_image: assets/samples/sample_03.jpg
+    image_search_query: "Viktor Gyökeres Sporting CP 2025"
+    wikimedia_filename: null  # 2018 é Brighton, anterior ao Sporting
+    local_image: null
     nicknames: []
 
   - id: francisco-trincao
@@ -33,7 +35,7 @@ players:
       - Vencedor da Taça de Portugal em 2024/25
     fun_facts:
       - Formou-se no Sporting de Braga e passou pelo FC Barcelona antes de chegar a Alvalade.
-    image_search_query: "Francisco Trincão Sporting CP"
+    image_search_query: "Francisco Trincão Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: [Trincão]
@@ -50,7 +52,7 @@ players:
       - Foi capitão da equipa
     fun_facts:
       - Chegou a Alvalade proveniente do Lecce e tornou-se uma referência no miolo.
-    image_search_query: "Morten Hjulmand Sporting CP"
+    image_search_query: "Morten Hjulmand Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -67,7 +69,7 @@ players:
       - Formado na Academia de Alcochete
     fun_facts:
       - Produto da formação leonina, estreou-se na equipa principal ainda muito jovem.
-    image_search_query: "Gonçalo Inácio Sporting CP"
+    image_search_query: "Gonçalo Inácio Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -84,7 +86,7 @@ players:
       - Campeão nacional pelo Sporting
     fun_facts:
       - Chegou ao Sporting em 2023, proveniente do FC Midtjylland.
-    image_search_query: "Ousmane Diomande Sporting CP"
+    image_search_query: "Ousmane Diomande Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -100,7 +102,7 @@ players:
       - Campeão nacional pelo Sporting
     fun_facts:
       - Internacional moçambicano, é um dos extremos mais desequilibrantes do plantel recente.
-    image_search_query: "Geny Catamo Sporting CP"
+    image_search_query: "Geny Catamo Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: [Geny]
@@ -117,7 +119,7 @@ players:
       - Melhor marcador da Liga na época do título de 2020/21
     fun_facts:
       - Chegou a Alvalade vindo do Famalicão e herdou a camisola 8, que já tinha sido de Bruno Fernandes.
-    image_search_query: "Pedro Gonçalves Sporting CP"
+    image_search_query: "Pedro Gonçalves Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: [Pote]
@@ -133,7 +135,7 @@ players:
       - Guarda-redes da equipa principal do Sporting
     fun_facts:
       - Passou pelo Granada e pelo Real Betis antes de vestir de verde e branco.
-    image_search_query: "Rui Silva Sporting CP guarda-redes"
+    image_search_query: "Rui Silva Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -149,7 +151,7 @@ players:
       - Campeão nacional em 2023/24 e 2024/25
     fun_facts:
       - Chegou a Portugal via Santa Clara, depois de ser campeão no Japão pelo Kawasaki Frontale.
-    image_search_query: "Hidemasa Morita Sporting CP"
+    image_search_query: "Hidemasa Morita Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -165,9 +167,9 @@ players:
       - Campeão nacional em 2020/21, 2023/24 e 2024/25
     fun_facts:
       - Formado no Benfica, afirmou-se como extremo de grande volume ofensivo em Alvalade.
-    image_search_query: "Nuno Santos Sporting CP futebol"
+    image_search_query: "Nuno Santos Sporting CP 2026"
     wikimedia_filename: "Portrait - Nuno Santos.jpg"
-    local_image: null
+    local_image: assets/samples/sample_01.jpg
     nicknames: []
     national_team: true
 
@@ -183,7 +185,7 @@ players:
       - Foi capitão do Sporting
     fun_facts:
       - É um dos estrangeiros com mais jogos de sempre pelo clube.
-    image_search_query: "Sebastián Coates Sporting CP"
+    image_search_query: "Sebastián Coates Sporting CP 2024"
     wikimedia_filename: null
     local_image: null
     nicknames: [Coates]
@@ -200,9 +202,9 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Ficou célebre pela trivela, o remate com o exterior do pé.
-    image_search_query: "Ricardo Quaresma Sporting CP"
-    wikimedia_filename: "Ricardo Quaresma na Exponor.JPG"
-    local_image: assets/samples/sample_02.jpg
+    image_search_query: "Ricardo Quaresma Sporting CP 2011"
+    wikimedia_filename: null  # Exponor: foto casual, não camisola Sporting
+    local_image: null
     nicknames: [Quaresma]
     national_team: true
     academy: true
@@ -217,9 +219,9 @@ players:
       - Campeão nacional em 2001/02
     fun_facts:
       - Chegou a Alvalade depois de uma carreira marcada no Benfica e fez parte da Geração de Ouro.
-    image_search_query: "João Vieira Pinto Sporting CP"
-    wikimedia_filename: "Joao Vieira Pinto at Exponor (2011).jpg"
-    local_image: assets/samples/sample_04.jpg
+    image_search_query: "João Pinto Sporting CP 2004"
+    wikimedia_filename: null  # 2011, depois da passagem em Alvalade
+    local_image: null
     nicknames: ["João Vieira Pinto"]
     national_team: true
 
@@ -235,7 +237,7 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Esteve 12 épocas na baliza da equipa principal antes de seguir para o Wolverhampton.
-    image_search_query: "Rui Patrício Sporting CP"
+    image_search_query: "Rui Patrício Sporting CP 2018"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -253,7 +255,7 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Foi eleito futebolista do ano do Sporting em 2014.
-    image_search_query: "William Carvalho Sporting CP"
+    image_search_query: "William Carvalho Sporting CP 2018"
     wikimedia_filename: null
     local_image: null
     nicknames: [William]
@@ -270,7 +272,7 @@ players:
       - Melhor marcador da Liga em 2016/17, com 34 golos
     fun_facts:
       - Era especialmente forte no jogo aéreo e nos remates de cabeça.
-    image_search_query: "Bas Dost Sporting CP"
+    image_search_query: "Bas Dost Sporting CP 2019"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -286,7 +288,7 @@ players:
       - Um dos melhores marcadores estrangeiros da história recente do clube
     fun_facts:
       - Saiu para o Leicester City depois de se afirmar como avançado de área em Alvalade.
-    image_search_query: "Islam Slimani Sporting CP"
+    image_search_query: "Islam Slimani Sporting CP 2016"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -321,9 +323,9 @@ players:
       - Vencedor da Taça de Portugal em 1994/95
     fun_facts:
       - Ganhou a Bola de Ouro no ano 2000, já depois de deixar o Sporting.
-    image_search_query: "Luís Figo Sporting CP"
-    wikimedia_filename: "Football against poverty 2014 - Luis Figo.jpg"
-    local_image: assets/samples/sample_01.jpg
+    image_search_query: "Luís Figo Sporting CP 1995"
+    wikimedia_filename: null  # Match Against Poverty 2014, não época Sporting
+    local_image: null
     nicknames: [Figo]
     national_team: true
     academy: true
@@ -338,7 +340,7 @@ players:
       - Formado no Sporting, estreou-se muito jovem na equipa principal
     fun_facts:
       - Depois de deixar Alvalade sagrou-se campeão europeu pelo FC Porto em 1987.
-    image_search_query: "Paulo Futre Sporting CP"
+    image_search_query: "Paulo Futre Sporting CP 1984"
     wikimedia_filename: null
     local_image: null
     nicknames: [Futre]
@@ -356,7 +358,7 @@ players:
       - Duas passagens como jogador em Alvalade
     fun_facts:
       - Mais tarde também treinou o Sporting.
-    image_search_query: "Ricardo Sá Pinto Sporting CP"
+    image_search_query: "Ricardo Sá Pinto Sporting CP 2006"
     wikimedia_filename: null
     local_image: null
     nicknames: ["Sá Pinto"]
@@ -373,7 +375,7 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Saiu de Alvalade para a Internazionale de Milão.
-    image_search_query: "João Mário Sporting CP"
+    image_search_query: "João Mário Sporting CP 2016"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -390,7 +392,7 @@ players:
       - Jogador do Ano da Liga (LPFP) em 2018 e 2019
     fun_facts:
       - Saiu para o Manchester United em janeiro de 2020, tornando-se uma das vendas mais mediáticas do clube.
-    image_search_query: "Bruno Fernandes Sporting CP"
+    image_search_query: "Bruno Fernandes Sporting CP 2020"
     wikimedia_filename: null
     local_image: null
     nicknames: [Bruno]
@@ -407,7 +409,7 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Saiu jovem para o Manchester United e mais tarde regressou a Alvalade para uma segunda passagem.
-    image_search_query: "Nani Sporting CP"
+    image_search_query: "Nani Sporting CP 2019"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -425,7 +427,7 @@ players:
       - Campeão da Europa de 2016 com a Seleção Nacional
     fun_facts:
       - Numa só época chegou a fazer 56 jogos pelo Sporting, recorde de utilizações numa temporada.
-    image_search_query: "João Moutinho Sporting CP"
+    image_search_query: "João Moutinho Sporting CP 2010"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -443,7 +445,7 @@ players:
       - Melhor marcador da Liga em 2004/05
     fun_facts:
       - Naturalizou-se português e chegou a representar a Seleção Nacional.
-    image_search_query: "Liédson Sporting CP"
+    image_search_query: "Liédson Sporting CP 2011"
     wikimedia_filename: null
     local_image: null
     nicknames: ["Levezinho"]
@@ -461,7 +463,7 @@ players:
       - 42 golos na Liga na época 2001/02
     fun_facts:
       - Chegou a Alvalade depois de um ciclo goleador no FC Porto e na Galatasaray.
-    image_search_query: "Mário Jardel Sporting CP"
+    image_search_query: "Mário Jardel Sporting CP 2003"
     wikimedia_filename: null
     local_image: null
     nicknames: [Jardel]
@@ -477,7 +479,7 @@ players:
       - Campeão nacional em 2020/21
     fun_facts:
       - Afirmou-se como médio de recuperação no título de 2020/21, antes de seguir para o Fulham.
-    image_search_query: "João Palhinha Sporting CP"
+    image_search_query: "João Palhinha Sporting CP 2022"
     wikimedia_filename: null
     local_image: null
     nicknames: [Palhinha]
@@ -494,9 +496,9 @@ players:
       - Campeão nacional em 2020/21
     fun_facts:
       - Chegou por empréstimo e tornou-se um dos laterais mais ofensivos da Liga antes de seguir para o Tottenham.
-    image_search_query: "Pedro Porro Sporting CP"
-    wikimedia_filename: null
-    local_image: null
+    image_search_query: "Pedro Porro Sporting CP 2023"
+    wikimedia_filename: "Pedro Porro 2021.png"
+    local_image: assets/samples/sample_02.jpg
     nicknames: [Porro]
     national_team: true
 
@@ -511,7 +513,7 @@ players:
       - Guarda-redes do Ano da Liga (LPFP) em 2021
     fun_facts:
       - Formou-se no Real Madrid e foi titular no título que quebrou um jejum de 19 anos.
-    image_search_query: "Antonio Adán Sporting CP"
+    image_search_query: "Antonio Adán Sporting CP 2024"
     wikimedia_filename: null
     local_image: null
     nicknames: [Adán]
@@ -527,7 +529,7 @@ players:
       - Campeão nacional pelo Sporting
     fun_facts:
       - Médio de primeiro passe, é um dos capitães da formação leonina na equipa principal.
-    image_search_query: "Daniel Bragança Sporting CP"
+    image_search_query: "Daniel Bragança Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: [Bragança]
@@ -543,7 +545,7 @@ players:
       - Campeão nacional em 2020/21
     fun_facts:
       - Nascido no Brasil, representou a Seleção Nacional portuguesa depois de se afirmar em Alvalade.
-    image_search_query: "Matheus Nunes Sporting CP"
+    image_search_query: "Matheus Nunes Sporting CP 2022"
     wikimedia_filename: null
     local_image: null
     nicknames: []
@@ -560,8 +562,8 @@ players:
       - Campeão nacional pelo Sporting
     fun_facts:
       - Defesa formado em Alcochete, foi ganhando espaço na equipa principal ao longo das épocas de títulos.
-    image_search_query: "Eduardo Quaresma Sporting CP"
-    wikimedia_filename: null
+    image_search_query: "Eduardo Quaresma Sporting CP 2026"
+    wikimedia_filename: "Eduardo Quaresma 2021.png"
     local_image: null
     nicknames: []
     academy: true
@@ -576,7 +578,7 @@ players:
       - Internacional belga ao serviço do Sporting
     fun_facts:
       - Chegou a Alvalade proveniente do Anderlecht.
-    image_search_query: "Zeno Debast Sporting CP"
+    image_search_query: "Zeno Debast Sporting CP 2026"
     wikimedia_filename: null
     local_image: null
     nicknames: []
