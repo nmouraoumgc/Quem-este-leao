@@ -25,3 +25,19 @@ def test_easy_clue_is_simple(tmp_settings) -> None:
     clue = generate_clue(player, Difficulty.EASY)
     assert "LeaozinhoUnico" not in clue
     assert "Teste" not in clue
+
+def test_easy_combo_not_unique_identifier() -> None:
+    from quem_e_este_leao.clues import combo_uniquely_identifies, generate_clue
+    from tests.helpers import make_player
+
+    unique = make_player(id="sueco", display_name="Sven Teste", nationality="Suécia", position="avançado")
+    others = [
+        make_player(id="p1", display_name="Outro Um", nationality="Portugal", position="médio"),
+        make_player(id="p2", display_name="Outro Dois", nationality="Espanha", position="extremo"),
+    ]
+    pool = [unique, *others]
+    assert combo_uniquely_identifies(unique, pool, nationality=True, position=True)
+    clue = generate_clue(unique, Difficulty.EASY, pool=pool)
+    assert "Sven" not in clue
+    assert "Teste" not in clue
+

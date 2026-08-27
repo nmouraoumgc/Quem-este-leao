@@ -70,3 +70,19 @@ def test_reveal_due_picks_published_past_deadline(tmp_settings, tmp_path) -> Non
     with db.session(tmp_settings.database_path) as conn:
         assert db.get_quiz(conn, quiz_id)["status"] == db.STATUS_REVEALED
         assert db.get_quiz(conn, future_id)["status"] == db.STATUS_PUBLISHED
+
+def test_daily_post_due_uses_sqlite(tmp_settings) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from quem_e_este_leao.schedule import should_run_daily_post
+
+    tz = ZoneInfo("Europe/Lisbon")
+    before = datetime(2026, 8, 27, 11, 0, tzinfo=tz)
+    after = datetime(2026, 8, 27, 12, 5, tzinfo=tz)
+    assert should_run_daily_post(tmp_settings, before) is False
+    assert should_run_daily_post(tmp_settings, after) is True
+    with db.session(tmp_settings.database_path) as conn:
+        db.set_last_daily_post_date(conn, "2026-08-27")
+    assert should_run_daily_post(tmp_settings, after) is False
+
