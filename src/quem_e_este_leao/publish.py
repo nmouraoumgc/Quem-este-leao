@@ -23,6 +23,10 @@ ANSWERS_BANNER = """\
 """
 
 
+class PublishError(RuntimeError):
+    """Falha de rede / API / autenticação ao publicar."""
+
+
 class Publisher(ABC):
     channel: str
 
@@ -33,6 +37,21 @@ class Publisher(ABC):
     @abstractmethod
     def publish_reveal(self, quiz_id: str) -> str | None:
         """Publica a revelação."""
+
+
+def _existing_remote(conn, quiz_id: str, kind: str) -> str | None:
+    pub = db.get_publication(conn, quiz_id, kind)
+    if pub is not None and pub["remote_id"]:
+        return str(pub["remote_id"])
+    row = db.get_quiz(conn, quiz_id)
+    if row is None:
+        return None
+    keys = row.keys()
+    if kind == "quiz" and "x_quiz_post_id" in keys and row["x_quiz_post_id"]:
+        return str(row["x_quiz_post_id"])
+    if kind == "reveal" and "x_reveal_post_id" in keys and row["x_reveal_post_id"]:
+        return str(row["x_reveal_post_id"])
+    return None
 
 
 class LocalPreviewPublisher(Publisher):
@@ -56,6 +75,10 @@ class LocalPreviewPublisher(Publisher):
             row = db.get_quiz(conn, quiz_id)
             if row is None:
                 raise KeyError(f"Quiz inexistente: {quiz_id}")
+            existing = _existing_remote(conn, quiz_id, "quiz")
+            if row["status"] in (db.STATUS_PUBLISHED, db.STATUS_REVEALED) and existing:
+                log.info("Quiz %s já publicado localmente — idempotente.", quiz_id)
+                return existing
             src = Path(row["processed_image_path"])
             dest = self._copy_image(src, quiz_id)
             caption_path = self.preview_dir / f"{src.stem}_caption.txt"
@@ -97,6 +120,10 @@ class LocalPreviewPublisher(Publisher):
             row = db.get_quiz(conn, quiz_id)
             if row is None:
                 raise KeyError(f"Quiz inexistente: {quiz_id}")
+            existing = _existing_remote(conn, quiz_id, "reveal")
+            if row["status"] == db.STATUS_REVEALED and existing:
+                log.info("Revelação %s já publicada localmente — idempotente.", quiz_id)
+                return existing
             src = Path(row["processed_image_path"])
             reveal_path = self.preview_dir / f"{src.stem}_reveal.txt"
             reveal_path.write_text(row["reveal_caption"] + "\n", encoding="utf-8")
@@ -108,15 +135,19 @@ class LocalPreviewPublisher(Publisher):
 class XPublisher(Publisher):
     channel = "x"
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, client=None, api_v1=None) -> None:
         self.settings = settings
-        if not settings.has_x_credentials:
+        self._client_override = client
+        self._api_v1_override = api_v1
+        if client is None and api_v1 is None and not settings.has_x_credentials:
             raise RuntimeError(
                 "Credenciais X em falta — a usar LocalPreviewPublisher. "
                 "Definir QEEL_X_API_KEY / SECRET / ACCESS_TOKEN / ACCESS_TOKEN_SECRET."
             )
 
     def _client(self):  # type: ignore[no-untyped-def]
+        if self._client_override is not None:
+            return self._client_override
         import tweepy
 
         return tweepy.Client(
@@ -128,6 +159,8 @@ class XPublisher(Publisher):
         )
 
     def _api_v1(self):  # type: ignore[no-untyped-def]
+        if self._api_v1_override is not None:
+            return self._api_v1_override
         import tweepy
 
         auth = tweepy.OAuth1UserHandler(
@@ -138,41 +171,82 @@ class XPublisher(Publisher):
         )
         return tweepy.API(auth)
 
+    def _classify_error(self, exc: BaseException) -> str:
+        name = type(exc).__name__
+        msg = str(exc).lower()
+        if "401" in msg or "unauthorized" in msg or "auth" in name.lower():
+            return "auth"
+        if "429" in msg or "rate" in msg or "too many" in msg:
+            return "rate_limit"
+        if "media" in msg:
+            return "media"
+        if "timeout" in msg or "connection" in msg or "network" in msg:
+            return "network"
+        return "api"
+
     def publish_quiz(self, quiz_id: str) -> str | None:
         with db.session(self.settings.database_path) as conn:
             row = db.get_quiz(conn, quiz_id)
             if row is None:
                 raise KeyError(f"Quiz inexistente: {quiz_id}")
-            media = self._api_v1().media_upload(row["processed_image_path"])
+            existing = _existing_remote(conn, quiz_id, "quiz")
+            if row["status"] in (db.STATUS_PUBLISHED, db.STATUS_REVEALED) and existing:
+                log.info("Quiz %s já no X — retry sem novo post.", quiz_id)
+                return existing
+            image_path = row["processed_image_path"]
+            caption = row["caption"]
+            reveal_dt_existing = row["reveal_dt"]
+
+        try:
+            media = self._api_v1().media_upload(image_path)
             tweet = self._client().create_tweet(
-                text=row["caption"],
+                text=caption,
                 media_ids=[media.media_id],
             )
             remote_id = str(tweet.data["id"])
-            tz = ZoneInfo(self.settings.timezone)
-            now = datetime.now(tz)
-            reveal_dt = now + timedelta(seconds=self.settings.reveal_delay_seconds)
+        except Exception as exc:  # noqa: BLE001
+            kind = self._classify_error(exc)
+            log.error("Falha a publicar quiz no X (%s): %s", kind, type(exc).__name__)
+            raise PublishError(f"X {kind}: {type(exc).__name__}") from exc
+
+        tz = ZoneInfo(self.settings.timezone)
+        now = datetime.now(tz)
+        reveal_dt = now + timedelta(seconds=self.settings.reveal_delay_seconds)
+        with db.session(self.settings.database_path) as conn:
             db.mark_published(
                 conn,
                 quiz_id,
                 publication_dt=now.isoformat(),
-                reveal_dt=row["reveal_dt"] or reveal_dt.isoformat(),
+                reveal_dt=reveal_dt_existing or reveal_dt.isoformat(),
                 channel=self.channel,
                 remote_id=remote_id,
             )
-            log.info("Quiz publicado no X (id remoto omitido no INFO).")
-            return remote_id
+        log.info("Quiz publicado no X (id remoto omitido no INFO).")
+        return remote_id
 
     def publish_reveal(self, quiz_id: str) -> str | None:
         with db.session(self.settings.database_path) as conn:
             row = db.get_quiz(conn, quiz_id)
             if row is None:
                 raise KeyError(f"Quiz inexistente: {quiz_id}")
-            tweet = self._client().create_tweet(text=row["reveal_caption"])
+            existing = _existing_remote(conn, quiz_id, "reveal")
+            if row["status"] == db.STATUS_REVEALED and existing:
+                log.info("Revelação %s já no X — retry sem novo post.", quiz_id)
+                return existing
+            text = row["reveal_caption"]
+
+        try:
+            tweet = self._client().create_tweet(text=text)
             remote_id = str(tweet.data["id"])
+        except Exception as exc:  # noqa: BLE001
+            kind = self._classify_error(exc)
+            log.error("Falha a revelar no X (%s): %s", kind, type(exc).__name__)
+            raise PublishError(f"X {kind}: {type(exc).__name__}") from exc
+
+        with db.session(self.settings.database_path) as conn:
             db.mark_revealed(conn, quiz_id, channel=self.channel, remote_id=remote_id)
-            log.info("Revelação publicada no X.")
-            return remote_id
+        log.info("Revelação publicada no X.")
+        return remote_id
 
 
 def get_publisher(settings: Settings) -> Publisher:
