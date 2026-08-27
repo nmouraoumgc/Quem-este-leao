@@ -1,0 +1,19 @@
+[Unit]
+Description=Quem É Este Leão? — agendador de quizzes #SpacesSporting
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sporting
+WorkingDirectory=/opt/quem-e-este-leao
+Environment=QEEL_TIMEZONE=Europe/Lisbon
+Environment=QEEL_DRY_RUN=true
+EnvironmentFile=-/opt/quem-e-este-leao/.env
+ExecStart=/opt/quem-e-este-leao/.venv/bin/quem-e-este-leao serve-scheduler
+Restart=on-failure
+RestartSec=10
+# A resposta nunca deve ir para o journal em INFO; o processo já a limita a DEBUG.
+
+[Install]
+WantedBy=multi-user.target

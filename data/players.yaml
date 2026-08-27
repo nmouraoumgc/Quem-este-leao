@@ -1,0 +1,583 @@
+# Base de jogadores do Sporting CP — factos públicos verificados.
+# NÃO inventar estatísticas. Os alcunhas entram em nicknames e NUNCA nas pistas.
+# image_search_query / wikimedia_filename / local_image: aquisição interna.
+# Operadores: só adicionar imagens para as quais tenham direitos.
+
+players:
+  - id: viktor-gyokeres
+    display_name: Viktor Gyökeres
+    nationality: Suécia
+    position: avançado
+    years_at_sporting: "2023–2025"
+    shirt_numbers: [9]
+    achievements:
+      - Campeão nacional em 2023/24 e 2024/25
+      - Melhor marcador da Liga (Bola de Prata) em duas épocas consecutivas
+      - Vencedor da Taça de Portugal em 2024/25
+    fun_facts:
+      - Chegou ao Sporting por uma transferência recorde do clube na altura.
+      - Recebeu a Guldbollen, prémio de futebolista sueco do ano, em 2024.
+    image_search_query: "Viktor Gyökeres Sporting CP football"
+    wikimedia_filename: "Viktor Gyökeres 2018.jpg"
+    local_image: assets/samples/sample_03.jpg
+    nicknames: []
+
+  - id: francisco-trincao
+    display_name: Francisco Trincão
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "2023–2026"
+    shirt_numbers: [17]
+    achievements:
+      - Campeão nacional em 2023/24 e 2024/25
+      - Vencedor da Taça de Portugal em 2024/25
+    fun_facts:
+      - Formou-se no Sporting de Braga e passou pelo FC Barcelona antes de chegar a Alvalade.
+    image_search_query: "Francisco Trincão Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Trincão]
+    national_team: true
+
+  - id: morten-hjulmand
+    display_name: Morten Hjulmand
+    nationality: Dinamarca
+    position: médio
+    years_at_sporting: "2023–2026"
+    shirt_numbers: [42]
+    achievements:
+      - Campeão nacional pelo Sporting
+      - Foi capitão da equipa
+    fun_facts:
+      - Chegou a Alvalade proveniente do Lecce e tornou-se uma referência no miolo.
+    image_search_query: "Morten Hjulmand Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: goncalo-inacio
+    display_name: Gonçalo Inácio
+    nationality: Portugal
+    position: defesa central
+    years_at_sporting: "2020–"
+    shirt_numbers: [25]
+    achievements:
+      - Campeão nacional em 2020/21, 2023/24 e 2024/25
+      - Formado na Academia de Alcochete
+    fun_facts:
+      - Produto da formação leonina, estreou-se na equipa principal ainda muito jovem.
+    image_search_query: "Gonçalo Inácio Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+    academy: true
+
+  - id: ousmane-diomande
+    display_name: Ousmane Diomande
+    nationality: Costa do Marfim
+    position: defesa central
+    years_at_sporting: "2023–"
+    shirt_numbers: [26]
+    achievements:
+      - Campeão nacional pelo Sporting
+    fun_facts:
+      - Chegou ao Sporting em 2023, proveniente do FC Midtjylland.
+    image_search_query: "Ousmane Diomande Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: geny-catamo
+    display_name: Geny Catamo
+    nationality: Moçambique
+    position: extremo
+    years_at_sporting: "2022–"
+    shirt_numbers: [21]
+    achievements:
+      - Campeão nacional pelo Sporting
+    fun_facts:
+      - Internacional moçambicano, é um dos extremos mais desequilibrantes do plantel recente.
+    image_search_query: "Geny Catamo Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Geny]
+    national_team: true
+
+  - id: pedro-goncalves
+    display_name: Pedro Gonçalves
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2020–"
+    shirt_numbers: [8, 28]
+    achievements:
+      - Campeão nacional em 2020/21, 2023/24 e 2024/25
+      - Melhor marcador da Liga na época do título de 2020/21
+    fun_facts:
+      - Chegou a Alvalade vindo do Famalicão e herdou a camisola 8, que já tinha sido de Bruno Fernandes.
+    image_search_query: "Pedro Gonçalves Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Pote]
+    national_team: true
+
+  - id: rui-silva
+    display_name: Rui Silva
+    nationality: Portugal
+    position: guarda-redes
+    years_at_sporting: "2024–"
+    shirt_numbers: [1]
+    achievements:
+      - Guarda-redes da equipa principal do Sporting
+    fun_facts:
+      - Passou pelo Granada e pelo Real Betis antes de vestir de verde e branco.
+    image_search_query: "Rui Silva Sporting CP guarda-redes"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: hidemasa-morita
+    display_name: Hidemasa Morita
+    nationality: Japão
+    position: médio
+    years_at_sporting: "2022–2026"
+    shirt_numbers: [5]
+    achievements:
+      - Campeão nacional em 2023/24 e 2024/25
+    fun_facts:
+      - Chegou a Portugal via Santa Clara, depois de ser campeão no Japão pelo Kawasaki Frontale.
+    image_search_query: "Hidemasa Morita Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: nuno-santos
+    display_name: Nuno Santos
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "2020–"
+    shirt_numbers: [11]
+    achievements:
+      - Campeão nacional em 2020/21, 2023/24 e 2024/25
+    fun_facts:
+      - Formado no Benfica, afirmou-se como extremo de grande volume ofensivo em Alvalade.
+    image_search_query: "Nuno Santos Sporting CP futebol"
+    wikimedia_filename: "Portrait - Nuno Santos.jpg"
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: sebastian-coates
+    display_name: Sebastián Coates
+    nationality: Uruguai
+    position: defesa central
+    years_at_sporting: "2016–2024"
+    shirt_numbers: [4]
+    achievements:
+      - Campeão nacional em 2020/21 e 2023/24
+      - Jogador do Ano da Liga (LPFP) em 2021
+      - Foi capitão do Sporting
+    fun_facts:
+      - É um dos estrangeiros com mais jogos de sempre pelo clube.
+    image_search_query: "Sebastián Coates Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Coates]
+    national_team: true
+
+  - id: ricardo-quaresma
+    display_name: Ricardo Quaresma
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "2001–2003, 2010–2011"
+    shirt_numbers: [7]
+    achievements:
+      - Saiu da Academia de Alcochete para a equipa principal
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Ficou célebre pela trivela, o remate com o exterior do pé.
+    image_search_query: "Ricardo Quaresma Sporting CP"
+    wikimedia_filename: "Ricardo Quaresma na Exponor.JPG"
+    local_image: assets/samples/sample_02.jpg
+    nicknames: [Quaresma]
+    national_team: true
+    academy: true
+
+  - id: joao-pinto
+    display_name: João Pinto
+    nationality: Portugal
+    position: avançado
+    years_at_sporting: "2000–2004"
+    shirt_numbers: [8]
+    achievements:
+      - Campeão nacional em 2001/02
+    fun_facts:
+      - Chegou a Alvalade depois de uma carreira marcada no Benfica e fez parte da Geração de Ouro.
+    image_search_query: "João Vieira Pinto Sporting CP"
+    wikimedia_filename: "Joao Vieira Pinto at Exponor (2011).jpg"
+    local_image: assets/samples/sample_04.jpg
+    nicknames: ["João Vieira Pinto"]
+    national_team: true
+
+  - id: rui-patricio
+    display_name: Rui Patrício
+    nationality: Portugal
+    position: guarda-redes
+    years_at_sporting: "2006–2018"
+    shirt_numbers: [1]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Segundo jogador com mais jogos de sempre pelo Sporting
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Esteve 12 épocas na baliza da equipa principal antes de seguir para o Wolverhampton.
+    image_search_query: "Rui Patrício Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+    academy: true
+
+  - id: william-carvalho
+    display_name: William Carvalho
+    nationality: Portugal
+    position: médio defensivo
+    years_at_sporting: "2013–2018"
+    shirt_numbers: [14]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Foi eleito futebolista do ano do Sporting em 2014.
+    image_search_query: "William Carvalho Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [William]
+    national_team: true
+    academy: true
+
+  - id: bas-dost
+    display_name: Bas Dost
+    nationality: Países Baixos
+    position: avançado
+    years_at_sporting: "2016–2019"
+    shirt_numbers: [28]
+    achievements:
+      - Melhor marcador da Liga em 2016/17, com 34 golos
+    fun_facts:
+      - Era especialmente forte no jogo aéreo e nos remates de cabeça.
+    image_search_query: "Bas Dost Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: islam-slimani
+    display_name: Islam Slimani
+    nationality: Argélia
+    position: avançado
+    years_at_sporting: "2013–2016"
+    shirt_numbers: [9]
+    achievements:
+      - Um dos melhores marcadores estrangeiros da história recente do clube
+    fun_facts:
+      - Saiu para o Leicester City depois de se afirmar como avançado de área em Alvalade.
+    image_search_query: "Islam Slimani Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: cristiano-ronaldo
+    display_name: Cristiano Ronaldo
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "2002–2003"
+    shirt_numbers: [28]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Estreou-se na equipa principal em 2002
+    fun_facts:
+      - Usou o número 28 em Alvalade. A academia do clube passou a ter o seu nome em 2020.
+    image_search_query: "Cristiano Ronaldo Sporting CP 2003"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [CR7, Ronaldo]
+    national_team: true
+    academy: true
+
+  - id: luis-figo
+    display_name: Luís Figo
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "1989–1995"
+    shirt_numbers: [7]
+    achievements:
+      - Formado na Academia
+      - Vencedor da Taça de Portugal em 1994/95
+    fun_facts:
+      - Ganhou a Bola de Ouro no ano 2000, já depois de deixar o Sporting.
+    image_search_query: "Luís Figo Sporting CP"
+    wikimedia_filename: "Football against poverty 2014 - Luis Figo.jpg"
+    local_image: assets/samples/sample_01.jpg
+    nicknames: [Figo]
+    national_team: true
+    academy: true
+
+  - id: paulo-futre
+    display_name: Paulo Futre
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "1983–1984"
+    shirt_numbers: [10]
+    achievements:
+      - Formado no Sporting, estreou-se muito jovem na equipa principal
+    fun_facts:
+      - Depois de deixar Alvalade sagrou-se campeão europeu pelo FC Porto em 1987.
+    image_search_query: "Paulo Futre Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Futre]
+    national_team: true
+    academy: true
+
+  - id: sa-pinto
+    display_name: Ricardo Sá Pinto
+    nationality: Portugal
+    position: avançado
+    years_at_sporting: "1994–1997, 2000–2006"
+    shirt_numbers: [16, 9]
+    achievements:
+      - Campeão nacional em 2001/02
+      - Duas passagens como jogador em Alvalade
+    fun_facts:
+      - Mais tarde também treinou o Sporting.
+    image_search_query: "Ricardo Sá Pinto Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: ["Sá Pinto"]
+    national_team: true
+
+  - id: joao-mario
+    display_name: João Mário
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2011–2016"
+    shirt_numbers: [17]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Saiu de Alvalade para a Internazionale de Milão.
+    image_search_query: "João Mário Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+    academy: true
+
+  - id: bruno-fernandes
+    display_name: Bruno Fernandes
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2017–2020"
+    shirt_numbers: [8]
+    achievements:
+      - Jogador do Ano da Liga (LPFP) em 2018 e 2019
+    fun_facts:
+      - Saiu para o Manchester United em janeiro de 2020, tornando-se uma das vendas mais mediáticas do clube.
+    image_search_query: "Bruno Fernandes Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Bruno]
+    national_team: true
+
+  - id: nani
+    display_name: Nani
+    nationality: Portugal
+    position: extremo
+    years_at_sporting: "2005–2007, 2018–2019"
+    shirt_numbers: [16, 17]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Saiu jovem para o Manchester United e mais tarde regressou a Alvalade para uma segunda passagem.
+    image_search_query: "Nani Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+    academy: true
+
+  - id: joao-moutinho
+    display_name: João Moutinho
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2004–2010"
+    shirt_numbers: [10, 28]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão da Europa de 2016 com a Seleção Nacional
+    fun_facts:
+      - Numa só época chegou a fazer 56 jogos pelo Sporting, recorde de utilizações numa temporada.
+    image_search_query: "João Moutinho Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+    academy: true
+
+  - id: liedson
+    display_name: Liédson
+    nationality: Brasil
+    position: avançado
+    years_at_sporting: "2003–2011"
+    shirt_numbers: [31]
+    achievements:
+      - 172 golos em 313 jogos pelo Sporting
+      - Melhor marcador da Liga em 2004/05
+    fun_facts:
+      - Naturalizou-se português e chegou a representar a Seleção Nacional.
+    image_search_query: "Liédson Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: ["Levezinho"]
+    national_team: true
+
+  - id: mario-jardel
+    display_name: Mário Jardel
+    nationality: Brasil
+    position: avançado
+    years_at_sporting: "2001–2003"
+    shirt_numbers: [16]
+    achievements:
+      - Campeão nacional em 2001/02
+      - Bota de Ouro europeia em 2002
+      - 42 golos na Liga na época 2001/02
+    fun_facts:
+      - Chegou a Alvalade depois de um ciclo goleador no FC Porto e na Galatasaray.
+    image_search_query: "Mário Jardel Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Jardel]
+
+  - id: joao-palhinha
+    display_name: João Palhinha
+    nationality: Portugal
+    position: médio defensivo
+    years_at_sporting: "2017–2022"
+    shirt_numbers: [6]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão nacional em 2020/21
+    fun_facts:
+      - Afirmou-se como médio de recuperação no título de 2020/21, antes de seguir para o Fulham.
+    image_search_query: "João Palhinha Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Palhinha]
+    national_team: true
+    academy: true
+
+  - id: pedro-porro
+    display_name: Pedro Porro
+    nationality: Espanha
+    position: lateral
+    years_at_sporting: "2020–2023"
+    shirt_numbers: [24]
+    achievements:
+      - Campeão nacional em 2020/21
+    fun_facts:
+      - Chegou por empréstimo e tornou-se um dos laterais mais ofensivos da Liga antes de seguir para o Tottenham.
+    image_search_query: "Pedro Porro Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Porro]
+    national_team: true
+
+  - id: antonio-adan
+    display_name: Antonio Adán
+    nationality: Espanha
+    position: guarda-redes
+    years_at_sporting: "2020–2024"
+    shirt_numbers: [1]
+    achievements:
+      - Campeão nacional em 2020/21 e 2023/24
+      - Guarda-redes do Ano da Liga (LPFP) em 2021
+    fun_facts:
+      - Formou-se no Real Madrid e foi titular no título que quebrou um jejum de 19 anos.
+    image_search_query: "Antonio Adán Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Adán]
+
+  - id: daniel-braganca
+    display_name: Daniel Bragança
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2019–"
+    shirt_numbers: [23]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão nacional pelo Sporting
+    fun_facts:
+      - Médio de primeiro passe, é um dos capitães da formação leonina na equipa principal.
+    image_search_query: "Daniel Bragança Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: [Bragança]
+    academy: true
+
+  - id: matheus-nunes
+    display_name: Matheus Nunes
+    nationality: Portugal
+    position: médio
+    years_at_sporting: "2020–2022"
+    shirt_numbers: [8]
+    achievements:
+      - Campeão nacional em 2020/21
+    fun_facts:
+      - Nascido no Brasil, representou a Seleção Nacional portuguesa depois de se afirmar em Alvalade.
+    image_search_query: "Matheus Nunes Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true
+
+  - id: eduardo-quaresma
+    display_name: Eduardo Quaresma
+    nationality: Portugal
+    position: defesa central
+    years_at_sporting: "2020–"
+    shirt_numbers: [72]
+    achievements:
+      - Formado na Academia de Alcochete
+      - Campeão nacional pelo Sporting
+    fun_facts:
+      - Defesa formado em Alcochete, foi ganhando espaço na equipa principal ao longo das épocas de títulos.
+    image_search_query: "Eduardo Quaresma Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    academy: true
+
+  - id: zeno-debast
+    display_name: Zeno Debast
+    nationality: Bélgica
+    position: defesa central
+    years_at_sporting: "2024–"
+    shirt_numbers: [6]
+    achievements:
+      - Internacional belga ao serviço do Sporting
+    fun_facts:
+      - Chegou a Alvalade proveniente do Anderlecht.
+    image_search_query: "Zeno Debast Sporting CP"
+    wikimedia_filename: null
+    local_image: null
+    nicknames: []
+    national_team: true

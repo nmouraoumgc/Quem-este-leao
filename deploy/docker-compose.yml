@@ -1,0 +1,23 @@
+services:
+  quiz:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: quem-e-este-leao:latest
+    restart: unless-stopped
+    environment:
+      QEEL_TIMEZONE: Europe/Lisbon
+      QEEL_DRY_RUN: "true"
+      QEEL_DIFFICULTY: medium
+      QEEL_REVEAL_DELAY: 1h
+      QEEL_DATABASE_PATH: /app/var/quem-e-este-leao.sqlite3
+      TZ: Europe/Lisbon
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ../var:/app/var
+      - ../examples:/app/examples
+      - ../data:/app/data:ro
+      - ../assets:/app/assets:ro
+    command: ["serve-scheduler"]
