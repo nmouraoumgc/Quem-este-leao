@@ -22,6 +22,11 @@ class RevealDelay(str, Enum):
     HOUR_3 = "3h"
 
 
+class ImageKind(str, Enum):
+    REAL = "REAL"
+    SYNTHETIC_TEST = "SYNTHETIC_TEST"
+
+
 REVEAL_DELAY_SECONDS: dict[RevealDelay, int] = {
     RevealDelay.MIN_30: 30 * 60,
     RevealDelay.HOUR_1: 60 * 60,
@@ -53,6 +58,15 @@ class Settings(BaseSettings):
 
     wikimedia_enabled: bool = True
     http_user_agent: str = "QuemEEsteLeao/1.0 (quiz visual Sporting CP; operador local)"
+    wikimedia_search_limit: int = 6
+    max_image_candidates: int = 8
+    min_image_score: float = 35.0
+
+    # Produção NUNCA usa sintético. Só testes / desenvolvimento explícito.
+    allow_synthetic: bool = False
+
+    # Hora local (Europe/Lisbon) do post diário. Os jobs devidos vivem no SQLite.
+    post_at: str = "12:00"
 
     x_api_key: str = ""
     x_api_secret: str = ""
@@ -70,6 +84,18 @@ class Settings(BaseSettings):
         if value.is_absolute():
             return value
         return (PROJECT_ROOT / value).resolve()
+
+    @field_validator("post_at")
+    @classmethod
+    def _parse_post_at(cls, value: str) -> str:
+        raw = (value or "12:00").strip()
+        parts = raw.split(":")
+        if len(parts) < 2:
+            raise ValueError("QEEL_POST_AT deve ser HH:MM (ex.: 12:00).")
+        hour, minute = int(parts[0]), int(parts[1])
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError("QEEL_POST_AT fora do intervalo.")
+        return f"{hour:02d}:{minute:02d}"
 
     @model_validator(mode="after")
     def _dry_run_without_x(self) -> Self:
@@ -89,6 +115,15 @@ class Settings(BaseSettings):
     @property
     def reveal_delay_seconds(self) -> int:
         return REVEAL_DELAY_SECONDS[self.reveal_delay]
+
+    @property
+    def yunet_model_path(self) -> Path:
+        return self.assets_dir / "models" / "face_detection_yunet_2023mar.onnx"
+
+    @property
+    def post_at_hour_minute(self) -> tuple[int, int]:
+        h, m = self.post_at.split(":")
+        return int(h), int(m)
 
 
 def load_settings(**overrides: object) -> Settings:

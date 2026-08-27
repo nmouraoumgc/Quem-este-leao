@@ -12,13 +12,15 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from quem_e_este_leao.config import Difficulty
+from quem_e_este_leao.detection import Box, DetectedFace, detect_faces, detect_faces_scored
 from quem_e_este_leao.logging_setup import get_logger
 
 log = get_logger("processing")
 
 CANVAS = 1080
+# Verde Sporting #008057
 SPORTING_GREEN = (0, 128, 87)
-DARK_GREEN = (8, 42, 30)
+DARK_GREEN = (6, 28, 20)
 WHITE = (255, 255, 255)
 OFF_WHITE = (246, 248, 246)
 GOLD = (201, 168, 76)
@@ -27,57 +29,52 @@ FONT_BOLD = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
 FONT_REG = Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf")
 FONT_FALLBACK = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
-HEADER_H = 96
-FOOTER_H = 80
-SIDE = 40
-GAP = 18
+HEADER_H = 72
+FOOTER_H = 148
+SIDE = 28
+GAP = 14
 
 
 class AnonymizationError(RuntimeError):
     """A fotografia continua reconhecível — abortar o candidato."""
 
 
+# Re-export for callers / tests that import Box from processing.
+__all__ = [
+    "AnonymizationError",
+    "AnonymizeResult",
+    "Box",
+    "DifficultyParams",
+    "PARAMS",
+    "anonymize",
+    "compose_frame",
+    "detect_faces",
+    "opaque_filename",
+    "pixelate",
+    "process_to_post",
+    "sharpness",
+    "strip_exif_save",
+]
+
+
 @dataclass(frozen=True)
-class Box:
-    x: int
-    y: int
-    w: int
-    h: int
-
-    def clip(self, width: int, height: int) -> "Box":
-        x = max(0, self.x)
-        y = max(0, self.y)
-        w = max(1, min(self.w, width - x))
-        h = max(1, min(self.h, height - y))
-        return Box(x, y, w, h)
-
-    def expand(self, factor: float, width: int, height: int) -> "Box":
-        cx, cy = self.x + self.w / 2, self.y + self.h / 2
-        nw, nh = self.w * factor, self.h * factor
-        return Box(int(cx - nw / 2), int(cy - nh / 2), int(nw), int(nh)).clip(width, height)
-
-    def as_slice(self) -> tuple[slice, slice]:
-        return slice(self.y, self.y + self.h), slice(self.x, self.x + self.w)
-
-    @property
-    def area(self) -> int:
-        return self.w * self.h
-
-
-@dataclass
 class DifficultyParams:
     pixel_block: int
     blur_ksize: int
     face_expand: float
+    pad_x: float
+    pad_y: float
     hide_name_number: bool
     hide_extra: bool
     min_sharpness_ratio: float
 
 
 PARAMS: dict[Difficulty, DifficultyParams] = {
-    Difficulty.EASY: DifficultyParams(12, 31, 1.15, False, False, 0.55),
-    Difficulty.MEDIUM: DifficultyParams(22, 61, 1.35, True, False, 0.28),
-    Difficulty.HARD: DifficultyParams(36, 91, 1.55, True, True, 0.16),
+    # easy = moderado; medium = forte; hard = extremo
+    # pad_* é fracção da caixa ORIGINAL (cabelo/queixo), não da já expandida.
+    Difficulty.EASY: DifficultyParams(22, 45, 1.22, 0.12, 0.20, False, False, 0.45),
+    Difficulty.MEDIUM: DifficultyParams(36, 81, 1.38, 0.16, 0.28, True, False, 0.22),
+    Difficulty.HARD: DifficultyParams(52, 111, 1.55, 0.22, 0.36, True, True, 0.12),
 }
 
 
@@ -89,6 +86,7 @@ class AnonymizeResult:
     used_fallback: bool
     face_sharpness_before: float
     face_sharpness_after: float
+    detected: list[DetectedFace] = field(default_factory=list)
 
 
 def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
@@ -98,77 +96,19 @@ def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
-def _haar_cascade(name: str) -> cv2.CascadeClassifier | None:
-    base = getattr(cv2, "data", None)
-    if base is None:
-        return None
-    path = Path(base.haarcascades) / name
-    if not path.exists():
-        return None
-    clf = cv2.CascadeClassifier(str(path))
-    return clf if not clf.empty() else None
-
-
-def detect_faces(gray: np.ndarray) -> list[Box]:
-    boxes: list[Box] = []
-    h_img, w_img = gray.shape[:2]
-    min_side = max(32, int(min(h_img, w_img) * 0.06))
-    for name, scale, neigh in (
-        ("haarcascade_frontalface_default.xml", 1.1, 5),
-        ("haarcascade_frontalface_alt2.xml", 1.1, 5),
-        ("haarcascade_profileface.xml", 1.12, 6),
-    ):
-        clf = _haar_cascade(name)
-        if clf is None:
-            continue
-        found = clf.detectMultiScale(gray, scaleFactor=scale, minNeighbors=neigh, minSize=(min_side, min_side))
-        for x, y, w, h in found:
-            boxes.append(Box(int(x), int(y), int(w), int(h)))
-    kept: list[Box] = []
-    for b in _nms(boxes, iou_thresh=0.35):
-        cy = b.y + b.h / 2
-        # falsos positivos típicos: calções, relvado, braços — a cara está no terço superior
-        if cy > h_img * 0.58:
-            continue
-        if b.w < min_side or b.h < min_side:
-            continue
-        kept.append(b)
-    if not kept:
-        return []
-    kept.sort(key=lambda b: b.area, reverse=True)
-    return kept[:2]
-
-
-def _iou(a: Box, b: Box) -> float:
-    x1, y1 = max(a.x, b.x), max(a.y, b.y)
-    x2, y2 = min(a.x + a.w, b.x + b.w), min(a.y + a.h, b.y + b.h)
-    inter = max(0, x2 - x1) * max(0, y2 - y1)
-    union = a.area + b.area - inter
-    return inter / union if union else 0.0
-
-
-def _nms(boxes: Sequence[Box], iou_thresh: float) -> list[Box]:
-    ordered = sorted(boxes, key=lambda b: b.area, reverse=True)
-    keep: list[Box] = []
-    for b in ordered:
-        if all(_iou(b, k) < iou_thresh for k in keep):
-            keep.append(b)
-    return keep
-
-
 def geometry_fallback(height: int, width: int) -> tuple[Box, Box]:
-    """Banda superior (~35%) para a cara e zona de peito para o número."""
+    """Mantido só para testes / diagnóstico — NÃO se usa em produção."""
     face = Box(int(width * 0.18), int(height * 0.02), int(width * 0.64), int(height * 0.35))
     chest = Box(int(width * 0.28), int(height * 0.38), int(width * 0.44), int(height * 0.28))
     return face.clip(width, height), chest.clip(width, height)
 
 
 def chest_from_face(face: Box, width: int, height: int) -> Box:
-    """Zona do número no peito, logo abaixo da cara — sem tapar o resto da camisola."""
-    y = face.y + face.h + int(face.h * 0.08)
-    h = max(int(face.h * 0.85), 28)
-    x = face.x + int(face.w * 0.12)
-    w = max(int(face.w * 0.76), 28)
+    """Zona do número no peito — inclui os lados (número no peito em close-up)."""
+    y = face.y + int(face.h * 0.32)
+    h = max(int(face.h * 1.05), 28)
+    x = face.x - int(face.w * 0.55)
+    w = max(int(face.w * 2.05), 28)
     return Box(x, y, w, h).clip(width, height)
 
 
@@ -183,7 +123,7 @@ def try_ocr_boxes(image_bgr: np.ndarray) -> list[Box]:
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         data = pytesseract.image_to_data(rgb, output_type=Output.DICT, config="--psm 11")
     except Exception:
-        log.info("OCR indisponível — a usar fallback geométrico para texto/número.")
+        log.info("OCR indisponível — a usar a zona do peito para número/nome.")
         return []
     boxes: list[Box] = []
     n = len(data.get("text", []))
@@ -197,7 +137,6 @@ def try_ocr_boxes(image_bgr: np.ndarray) -> list[Box]:
             conf = -1.0
         if conf >= 0 and conf < 40:
             continue
-        # números de camisola ou palavras com aspecto de nome
         if text.isdigit() or (len(text) >= 3 and text.replace("-", "").isalpha() and text.isupper()):
             boxes.append(
                 Box(int(data["left"][i]), int(data["top"][i]), int(data["width"][i]), int(data["height"][i]))
@@ -228,6 +167,69 @@ def gaussian_blur(img: np.ndarray, box: Box, ksize: int) -> None:
     img[ys, xs] = cv2.GaussianBlur(roi, (k, k), 0)
 
 
+def _feathered_ellipse_mask(h: int, w: int) -> np.ndarray:
+    """Núcleo opaco (máscara=1) com pluma só no bordo — cara irreconhecível, sem rectângulo preto."""
+    mask = np.zeros((h, w), dtype=np.float32)
+    cx, cy = int(w / 2.0), int(h / 2.0)
+    axes = (max(1, int(w * 0.48)), max(1, int(h * 0.48)))
+    cv2.ellipse(mask, (cx, cy), axes, 0, 0, 360, 1.0, -1)
+    k = max(7, (min(h, w) // 16) | 1)
+    mask = cv2.GaussianBlur(mask, (k, k), 0)
+    # O núcleo fica a 1.0; só a coroa exterior mistura com o original.
+    mask = np.clip(mask * 1.35, 0.0, 1.0)
+    return mask
+
+
+def _feathered_roundrect_mask(h: int, w: int) -> np.ndarray:
+    mask = np.zeros((h, w), dtype=np.float32)
+    radius = max(4, min(h, w) // 6)
+    cv2.rectangle(mask, (2, 2), (w - 3, h - 3), 1.0, -1)
+    k = max(5, (min(h, w) // 8) | 1)
+    mask = cv2.GaussianBlur(mask, (k, k), 0)
+    # keep corners from being a hard box: already blurred
+    _ = radius
+    peak = float(mask.max()) or 1.0
+    return mask / peak
+
+
+def mask_region(
+    img: np.ndarray,
+    box: Box,
+    *,
+    pixel_block: int,
+    blur_ksize: int,
+    shape: str = "ellipse",
+    extra_blur: int = 0,
+) -> None:
+    """Pixelize + blur só dentro de uma máscara com pluma — não um rectângulo preto."""
+    h_img, w_img = img.shape[:2]
+    box = box.clip(w_img, h_img)
+    ys, xs = box.as_slice()
+    roi = img[ys, xs]
+    if roi.size == 0:
+        return
+    h, w = roi.shape[:2]
+    anonymized = roi.copy()
+    # pixelate full ROI then blur, then blend with ellipse/round-rect
+    bw = max(1, w // max(4, pixel_block))
+    bh = max(1, h // max(4, pixel_block))
+    small = cv2.resize(anonymized, (bw, bh), interpolation=cv2.INTER_LINEAR)
+    anonymized = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
+    k = blur_ksize if blur_ksize % 2 == 1 else blur_ksize + 1
+    k = max(3, k)
+    anonymized = cv2.GaussianBlur(anonymized, (k, k), 0)
+    if extra_blur:
+        k2 = extra_blur if extra_blur % 2 == 1 else extra_blur + 1
+        anonymized = cv2.GaussianBlur(anonymized, (max(3, k2), max(3, k2)), 0)
+    if shape == "ellipse":
+        mask = _feathered_ellipse_mask(h, w)
+    else:
+        mask = _feathered_roundrect_mask(h, w)
+    mask3 = mask[:, :, None]
+    blended = anonymized.astype(np.float32) * mask3 + roi.astype(np.float32) * (1.0 - mask3)
+    img[ys, xs] = blended.astype(np.uint8)
+
+
 def sharpness(img: np.ndarray, boxes: Iterable[Box]) -> float:
     values: list[float] = []
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
@@ -246,53 +248,77 @@ def anonymize(
     *,
     forced_faces: list[Box] | None = None,
     abort_if_recognizable: bool = True,
+    allow_geometry_fallback: bool = False,
 ) -> AnonymizeResult:
     params = PARAMS[difficulty]
     h, w = image_bgr.shape[:2]
     work = image_bgr.copy()
-    gray = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY)
-    faces = list(forced_faces) if forced_faces is not None else detect_faces(gray)
     used_fallback = False
     extra: list[Box] = []
+    detected: list[DetectedFace] = []
 
-    if not faces:
-        face, chest = geometry_fallback(h, w)
-        faces = [face]
-        extra.append(chest)
-        used_fallback = True
-        log.info("Detector de cara falhou — fallback da banda superior + peito.")
+    if forced_faces is not None:
+        faces = list(forced_faces)
     else:
-        faces = [f.expand(params.face_expand, w, h) for f in faces]
-        if params.hide_name_number:
-            extra.extend(chest_from_face(f, w, h) for f in faces)
+        detected = detect_faces_scored(work, try_rotations=True)
+        faces = [f.box for f in detected]
+        if not faces:
+            if allow_geometry_fallback:
+                face, chest = geometry_fallback(h, w)
+                faces = [face]
+                extra.append(chest)
+                used_fallback = True
+                log.info("Detector de cara falhou — fallback geométrico (apenas modo explícito).")
+            else:
+                raise AnonymizationError(
+                    "Cara não detectada de forma fiável — a rejeitar a fotografia."
+                )
+
+    core_faces = list(faces)
+    # expand + padding da caixa ORIGINAL (cabelo / queixo), sem tapar o corpo inteiro
+    faces = [
+        f.pad(params.pad_x, params.pad_y, w, h).expand(params.face_expand, w, h)
+        for f in faces
+    ]
 
     if params.hide_name_number:
+        extra.extend(chest_from_face(f, w, h) for f in core_faces)
         extra.extend(try_ocr_boxes(work))
 
-    if params.hide_extra:
-        # zona de faixa de nomes no terço inferior (faixas publicitárias / costas)
-        extra.append(Box(int(w * 0.1), int(h * 0.72), int(w * 0.8), int(h * 0.18)).clip(w, h))
+    # HARD: só caixas de texto OCR (já em extra). NÃO tapar o terço inferior
+    # (era isto que pixelizava calções / virilha).
 
-    before = sharpness(work, faces)
+    before = sharpness(work, core_faces)
 
+    extra_blur = params.blur_ksize + 24 if difficulty is Difficulty.HARD else 0
     for face in faces:
-        pixelate(work, face, params.pixel_block)
-        gaussian_blur(work, face, params.blur_ksize)
-        if difficulty is Difficulty.HARD:
-            gaussian_blur(work, face, params.blur_ksize + 20)
+        mask_region(
+            work,
+            face,
+            pixel_block=params.pixel_block,
+            blur_ksize=params.blur_ksize,
+            shape="ellipse",
+            extra_blur=extra_blur,
+        )
 
     if params.hide_name_number:
         for box in extra:
-            gaussian_blur(work, box, max(31, params.blur_ksize - 10))
-            pixelate(work, box, max(8, params.pixel_block // 2))
+            mask_region(
+                work,
+                box,
+                pixel_block=max(8, params.pixel_block // 2),
+                blur_ksize=max(31, params.blur_ksize - 10),
+                shape="roundrect",
+            )
 
-    after = sharpness(work, faces)
+    after = sharpness(work, core_faces)
     ratio = (after / before) if before > 1e-6 else 0.0
     log.info(
-        "Anonimização %s: fallback=%s sharpness_ratio=%.3f",
+        "Anonimização %s: fallback=%s sharpness_ratio=%.3f faces=%s",
         difficulty.value,
         used_fallback,
         ratio,
+        len(faces),
     )
     if (
         abort_if_recognizable
@@ -310,78 +336,120 @@ def anonymize(
         used_fallback=used_fallback,
         face_sharpness_before=before,
         face_sharpness_after=after,
+        detected=detected,
     )
 
 
-def _cover_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
+def _contain_resize(img: Image.Image, tw: int, th: int, fill: tuple[int, int, int]) -> Image.Image:
+    """Escala uniformemente para caber (sem distorcer nem cortar)."""
+    scale = min(tw / img.width, th / img.height)
+    nw, nh = max(1, int(img.width * scale)), max(1, int(img.height * scale))
+    resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGB", (tw, th), fill)
+    canvas.paste(resized, ((tw - nw) // 2, (th - nh) // 2))
+    return canvas
+
+
+def _cover_on_face(
+    img: Image.Image, tw: int, th: int, face: Box | None, src_w: int, src_h: int
+) -> Image.Image:
+    """Cover sem distorcer; centra na cara se conhecida."""
     scale = max(tw / img.width, th / img.height)
     nw, nh = int(img.width * scale), int(img.height * scale)
     resized = img.resize((nw, nh), Image.Resampling.LANCZOS)
-    left = (nw - tw) // 2
-    top = (nh - th) // 2
+    if face is not None and src_w > 0 and src_h > 0:
+        cx = (face.x + face.w / 2) / src_w * nw
+        cy = (face.y + face.h / 2) / src_h * nh
+        left = int(cx - tw / 2)
+        top = int(cy - th / 2)
+    else:
+        left = (nw - tw) // 2
+        top = (nh - th) // 2
+    left = max(0, min(left, nw - tw))
+    top = max(0, min(top, nh - th))
     return resized.crop((left, top, left + tw, top + th))
 
 
 def _draw_lion_badge(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int) -> None:
     draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=WHITE, outline=GOLD, width=3)
     draw.ellipse((cx - r + 6, cy - r + 6, cx + r - 6, cy + r - 6), fill=SPORTING_GREEN)
-    # juba simplificada (não é o emblema oficial)
-    for ang, rad in ((-40, r - 2), (0, r), (40, r - 2), (180, r - 4)):
+    for ang, _rad in ((-40, r - 2), (0, r), (40, r - 2), (180, r - 4)):
         x = cx + int(math.cos(math.radians(ang)) * (r + 2))
         y = cy + int(math.sin(math.radians(ang)) * (r + 2))
         draw.ellipse((x - 7, y - 7, x + 7, y + 7), fill=GOLD)
     draw.text((cx - 10, cy - 11), "S", font=_font(FONT_BOLD, 22), fill=WHITE)
 
 
-def compose_frame(image_bgr: np.ndarray) -> Image.Image:
-    """Moldura 1080×1080: foto como herói, barra #SpacesSporting, sem tapar o jogador."""
+def compose_frame(
+    image_bgr: np.ndarray,
+    *,
+    desafio_n: int | None = None,
+    face_boxes: Sequence[Box] | None = None,
+    fit: str = "contain",
+) -> Image.Image:
+    """Moldura 1080×1080: branding no topo, foto ao centro, título em baixo.
+
+    A fotografia nunca é esticada (aspect ratio preservado).
+    """
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     photo = Image.fromarray(rgb)
+    src_h, src_w = image_bgr.shape[:2]
     canvas = Image.new("RGB", (CANVAS, CANVAS), DARK_GREEN)
     draw = ImageDraw.Draw(canvas)
 
-    # cabeçalho
+    # cabeçalho — só branding
     draw.rectangle((0, 0, CANVAS, HEADER_H), fill=SPORTING_GREEN)
-    draw.rectangle((0, HEADER_H - 4, CANVAS, HEADER_H), fill=WHITE)
-    _draw_lion_badge(draw, 56, HEADER_H // 2, 28)
-    title_font = _font(FONT_BOLD, 42)
-    draw.text((100, 26), "QUEM É ESTE LEÃO?", font=title_font, fill=WHITE)
+    draw.rectangle((0, HEADER_H - 3, CANVAS, HEADER_H), fill=WHITE)
+    _draw_lion_badge(draw, 48, HEADER_H // 2, 22)
+    brand_font = _font(FONT_BOLD, 28)
+    draw.text((84, 22), "#SpacesSporting", font=brand_font, fill=WHITE)
 
-    # área da fotografia
     photo_top = HEADER_H + GAP
     photo_bottom = CANVAS - FOOTER_H - GAP
     photo_left = SIDE
     photo_right = CANVAS - SIDE
     pw, ph = photo_right - photo_left, photo_bottom - photo_top
-    hero = _cover_resize(photo, pw, ph)
-    # ligeira vinheta nas bordas, sem tapar o centro
+    face = face_boxes[0] if face_boxes else None
+    if fit == "cover":
+        hero = _cover_on_face(photo, pw, ph, face, src_w, src_h)
+    else:
+        hero = _contain_resize(photo, pw, ph, DARK_GREEN)
+
     vignette = Image.new("L", hero.size, 0)
     vdraw = ImageDraw.Draw(vignette)
-    vdraw.rounded_rectangle((0, 0, pw - 1, ph - 1), radius=18, fill=255)
-    vignette = vignette.filter(ImageFilter.GaussianBlur(6))
+    vdraw.rounded_rectangle((0, 0, pw - 1, ph - 1), radius=22, fill=255)
+    vignette = vignette.filter(ImageFilter.GaussianBlur(5))
     rounded = Image.new("RGB", hero.size, DARK_GREEN)
     rounded.paste(hero, (0, 0))
-    mask = vignette
-    canvas.paste(rounded, (photo_left, photo_top), mask)
+    canvas.paste(rounded, (photo_left, photo_top), vignette)
 
-    # filete branco fino
     draw.rounded_rectangle(
         (photo_left - 2, photo_top - 2, photo_right + 1, photo_bottom + 1),
-        radius=20,
+        radius=24,
         outline=WHITE,
         width=2,
     )
 
-    # rodapé
     fy = CANVAS - FOOTER_H
     draw.rectangle((0, fy, CANVAS, CANVAS), fill=SPORTING_GREEN)
-    draw.rectangle((0, fy, CANVAS, fy + 4), fill=WHITE)
-    foot = _font(FONT_BOLD, 28)
-    draw.text((SIDE, fy + 24), "#SpacesSporting", font=foot, fill=WHITE)
+    draw.rectangle((0, fy, CANVAS, fy + 3), fill=WHITE)
+    title_font = _font(FONT_BOLD, 44)
+    title = "QUEM É ESTE LEÃO?"
+    # centrar o título
+    bbox = draw.textbbox((0, 0), title, font=title_font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((CANVAS - tw) // 2, fy + 28), title, font=title_font, fill=WHITE)
+
     small = _font(FONT_REG, 22)
-    draw.text((CANVAS - 250, fy + 28), "SCP", font=small, fill=WHITE)
-    # círculos verde e branco (as fontes do sistema não têm emoji)
-    gy = fy + 32
+    if desafio_n is not None:
+        label = f"desafio nº {desafio_n}"
+        lb = draw.textbbox((0, 0), label, font=small)
+        lw = lb[2] - lb[0]
+        draw.text(((CANVAS - lw) // 2, fy + 90), label, font=small, fill=OFF_WHITE)
+    else:
+        draw.text((SIDE, fy + 100), "SCP", font=small, fill=WHITE)
+
+    gy = fy + 102
     draw.ellipse((CANVAS - 118, gy, CANVAS - 90, gy + 28), fill=WHITE, outline=WHITE)
     draw.ellipse((CANVAS - 114, gy + 4, CANVAS - 94, gy + 24), fill=SPORTING_GREEN)
     draw.ellipse((CANVAS - 80, gy, CANVAS - 52, gy + 28), fill=WHITE, outline=WHITE)
@@ -397,7 +465,6 @@ def strip_exif_save(image: Image.Image, dest: Path, quality: int = 92) -> Path:
 
 
 def opaque_filename(quiz_id: str) -> str:
-    # quiz_id já é hex opaco
     hex_part = quiz_id.replace("-", "")[:16]
     return f"quiz_{hex_part}.jpg"
 
@@ -409,6 +476,11 @@ def process_to_post(
     *,
     abort_if_recognizable: bool = True,
     forced_faces: list[Box] | None = None,
+    player=None,
+    desafio_n: int | None = None,
+    second_pass: bool = True,
+    ocr_enabled: bool = True,
+    allow_geometry_fallback: bool = False,
 ) -> AnonymizeResult:
     data = np.fromfile(str(source), dtype=np.uint8)
     image_bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -419,8 +491,26 @@ def process_to_post(
         difficulty,
         forced_faces=forced_faces,
         abort_if_recognizable=abort_if_recognizable,
+        allow_geometry_fallback=allow_geometry_fallback,
     )
-    frame = compose_frame(result.image_bgr)
+    if second_pass:
+        from quem_e_este_leao.validation import validate_anonymized
+
+        report = validate_anonymized(
+            result.image_bgr,
+            masked_boxes=result.face_boxes + result.extra_boxes,
+            player=player,
+            ocr_enabled=ocr_enabled,
+            abort_if_recognizable=abort_if_recognizable,
+        )
+        if abort_if_recognizable and not report.ok:
+            raise AnonymizationError(f"Segunda passagem falhou: {report.reason}")
+    frame = compose_frame(
+        result.image_bgr,
+        desafio_n=desafio_n,
+        face_boxes=result.face_boxes,
+        fit="contain",
+    )
     strip_exif_save(frame, dest)
     log.info("Quadro composto gravado (%s).", dest.name)
     return result
