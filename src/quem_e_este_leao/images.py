@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,116 @@ log = get_logger("images")
 
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 THUMB_WIDTH = 1280
+
+_YEAR = re.compile(r"(?:19|20)\d{2}")
+_SPAN = re.compile(
+    r"(19\d{2}|20\d{2})\s*[\u2013\-]\s*(19\d{2}|20\d{2})?"
+)
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def sporting_year_spans(years_at_sporting: str) -> list[tuple[int, int]]:
+    """Interpreta «2023–2025», «2020–», «2001–2003, 2010–2011»."""
+    raw = (years_at_sporting or "").strip()
+    if not raw:
+        return []
+    now = date.today().year
+    spans: list[tuple[int, int]] = []
+    compact = raw.replace(" ", "")
+    for m in _SPAN.finditer(compact):
+        start = int(m.group(1))
+        end_s = m.group(2)
+        end = int(end_s) if end_s else now
+        if end < start:
+            end = start
+        spans.append((start, min(end, now + 1)))
+    if not spans:
+        years = [int(y) for y in _YEAR.findall(raw)]
+        spans = [(y, y) for y in years]
+    return spans
+
+
+def sporting_years(years_at_sporting: str) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+    for start, end in sporting_year_spans(years_at_sporting):
+        for y in range(start, end + 1):
+            if y not in seen:
+                seen.add(y)
+                out.append(y)
+    return out
+
+
+def representative_sporting_years(years_at_sporting: str) -> list[int]:
+    """Último ano da última passagem, e o da primeira se for distinto."""
+    spans = sporting_year_spans(years_at_sporting)
+    if not spans:
+        return [date.today().year]
+    last_start, last_end = spans[-1]
+    years = [last_end]
+    # Ano anterior da mesma passagem (ex.: Gyökeres 2024 além de 2025).
+    if last_end - last_start >= 1:
+        prev = last_end - 1
+        if prev >= last_start:
+            years.append(prev)
+    first_end = spans[0][1]
+    if first_end not in years:
+        years.append(first_end)
+    return years
+
+
+def sporting_search_queries(player: Player) -> list[str]:
+    """Pesquisa primária: nome + Sporting CP + anos em Alvalade.
+
+    Não usa fotos genéricas da carreira como consulta principal.
+    """
+    years = representative_sporting_years(player.years_at_sporting)
+    queries: list[str] = []
+    seen: set[str] = set()
+
+    def _add(q: str) -> None:
+        q = " ".join(q.split())
+        key = q.casefold()
+        if q and key not in seen:
+            seen.add(key)
+            queries.append(q)
+
+    yaml_q = (player.image_search_query or "").strip()
+    if yaml_q and _query_is_sporting_era(yaml_q):
+        _add(yaml_q)
+
+    for year in years:
+        _add(f"{player.display_name} Sporting CP {year}")
+        _add(f"{player.display_name} Sporting {year}")
+    return queries
+
+
+def _query_is_sporting_era(query: str) -> bool:
+    low = query.casefold()
+    has_sporting = "sporting" in low
+    has_year = bool(_YEAR.search(query))
+    return has_sporting and has_year
+
+
+def wikimedia_filename_wrong_era(filename: str, player: Player) -> bool:
+    """True se o ficheiro Commons tem um ano claramente fora da época Sporting."""
+    years_in_name = [int(y) for y in _YEAR.findall(filename or "")]
+    if not years_in_name:
+        return False
+    allowed = set(sporting_years(player.years_at_sporting))
+    expanded: set[int] = set()
+    for y in allowed:
+        expanded.update((y - 1, y, y + 1))
+    return not any(y in expanded for y in years_in_name)
+
+
+def _plain_meta(value: object) -> str:
+    if not value:
+        return ""
+    if isinstance(value, dict):
+        value = value.get("value") or ""
+    text = str(value)
+    return " ".join(_HTML_TAG.sub(" ", text).split())
 
 
 @dataclass
@@ -92,8 +204,10 @@ def fetch_wikimedia_file(
             if not thumb:
                 return None
             meta = info.get("extmetadata") or {}
-            artist = (meta.get("Artist") or {}).get("value") or ""
-            license_name = (meta.get("LicenseShortName") or {}).get("value") or ""
+            artist = _plain_meta(meta.get("Artist"))
+            license_name = _plain_meta(meta.get("LicenseShortName"))
+            description = _plain_meta(meta.get("ImageDescription"))
+            object_name = _plain_meta(meta.get("ObjectName"))
             img_resp = client.get(
                 thumb, headers={"User-Agent": settings.http_user_agent, "Accept": "image/*"}
             )
@@ -109,6 +223,9 @@ def fetch_wikimedia_file(
                     "url": info.get("descriptionurl"),
                     "artist": artist,
                     "license": license_name,
+                    "description": description,
+                    "object_name": object_name,
+                    "title": filename,
                 },
                 image_kind=ImageKind.REAL.value,
             )
@@ -253,16 +370,31 @@ def collect_candidates(
             )
 
     if use_wiki and player.wikimedia_filename:
-        _add(fetch_wikimedia_file(player.wikimedia_filename, work_dir, settings))
+        if wikimedia_filename_wrong_era(player.wikimedia_filename, player):
+            log.info(
+                "Ficheiro Wikimedia ignorado (outra época/clube): não entra como candidato de produção."
+            )
+        else:
+            _add(fetch_wikimedia_file(player.wikimedia_filename, work_dir, settings))
 
-    if use_wiki and player.image_search_query:
-        for cand in search_wikimedia_many(
-            player.image_search_query,
-            work_dir,
-            settings,
-            limit=min(settings.wikimedia_search_limit, settings.max_image_candidates),
-        ):
-            _add(cand)
+    if use_wiki:
+        limit = min(settings.wikimedia_search_limit, settings.max_image_candidates)
+        for query in sporting_search_queries(player):
+            if settings.max_image_candidates and len(out) >= settings.max_image_candidates:
+                break
+            remaining = (
+                settings.max_image_candidates - len(out)
+                if settings.max_image_candidates
+                else limit
+            )
+            log.info("Pesquisa Commons com consulta da época Sporting.")
+            for cand in search_wikimedia_many(
+                query,
+                work_dir,
+                settings,
+                limit=min(limit, remaining),
+            ):
+                _add(cand)
 
     if use_synth:
         dest = work_dir / "synthetic_kit.jpg"

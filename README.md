@@ -10,6 +10,10 @@ Fluxo de produção:
 A fiabilidade da escolha e da anonimização da fotografia vale mais do que a velocidade.
 Um falso negativo (rejeitar a imagem) é preferível a publicar um jogador reconhecível.
 
+As fotografias **têm de ser da época em que o jogador representou o Sporting CP**
+(camisola verde-e-branca / Alvalade). Fotos de outros clubes, da seleção, ou de
+jogos de caridade (mesmo com o jogador visível) são rejeitadas.
+
 ## Requisitos
 
 - Python 3.11+ (testado em 3.13)
@@ -52,9 +56,10 @@ Ver `.env.example`. Variáveis com prefixo `QEEL_`:
 
 **Direitos de imagem.** A Wikimedia Commons é a fonte preferida. Fotografias
 locais extra só podem ser adicionadas se o operador tiver direitos (licença
-reutilizável, autorização, ou arquivo próprio). Fonte e créditos guardam-se
-**internamente** (manifesto / coluna `image_attribution`) — nunca no nome
-público do ficheiro. `image_kind` é `REAL` ou `SYNTHETIC_TEST`.
+reutilizável, autorização, ou arquivo próprio) **e** se mostrarem o jogador
+na época Sporting. Fonte e créditos guardam-se **internamente** (manifesto /
+coluna `image_attribution`) — nunca no nome público do ficheiro. `image_kind`
+é `REAL` ou `SYNTHETIC_TEST`.
 
 ## Gerar um quiz (pré-visualização)
 
@@ -98,8 +103,11 @@ quem-e-este-leao list-formats
 ## Pipeline de imagem
 
 1. Recolhe **vários** candidatos (foto local curada + Wikimedia ficheiro conhecido + pesquisa Commons).
-2. Pontua: resolução, cara detectada, ocupação, kit verde-e-branco, jogador dominante, crop; penaliza multi-jogador, cara minúscula, ficheiro corrupto, texto excessivo.
-3. Tenta o melhor. Se a anonimização ou a 2.ª passagem falhar, passa ao seguinte. Se nenhum for seguro, **descarta o jogador** e escolhe outro.
+   A pesquisa **tem de** incluir Sporting CP e os `years_at_sporting` (ex.: «Luís Figo Sporting CP 1995»).
+   Ficheiros Commons de outro clube/ano (ex.: Gyökeres 2018) não entram como candidato de produção.
+2. Pontua: resolução, cara detectada, ocupação, **kit verde-e-branco (requisito)**, jogador dominante, crop; penaliza multi-jogador, cara minúscula, ficheiro corrupto, texto excessivo.
+   Sem verde Sporting no tronco (`not_sporting_kit`) a foto é **rejeitada**. Não se publicam camisolas de outros clubes nem jogos de caridade.
+3. Tenta o melhor. Se a anonimização ou a 2.ª passagem falhar, passa ao seguinte. Se nenhum for seguro, **descarta o jogador** e escolhe outro. Nunca recua para uma foto fora da época Sporting.
 4. Sintético **só** com `QEEL_ALLOW_SYNTHETIC=true` (testes). Produção nunca recorre a geometria «à sorte».
 
 ### Detecção de cara
@@ -229,7 +237,8 @@ pytest -q
 ```
 
 Cobertura: rotação, pistas sem nome / combinação única, nomes de ficheiro opacos,
-EXIF limpo, força de desfoque por dificuldade, detecção YuNet, pontuação de imagens,
+EXIF limpo, força de desfoque por dificuldade, detecção YuNet, pontuação de imagens
+(rejeição de camisola não-Sporting), pesquisa Commons da época Alvalade,
 anonimização (fixture sintética `tests/fixtures/` em modo `SYNTHETIC_TEST`),
 segunda passagem, transições SQLite, publicação idempotente (X mockado),
 agendador (revelação devida + post diário), e2e dry-run com fotografia real de `assets/samples`.

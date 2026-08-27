@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -17,11 +18,22 @@ from quem_e_este_leao.logging_setup import get_logger
 
 log = get_logger("scoring")
 
-# Sporting green in OpenCV HSV (H 0-180). #008057 ≈ H 75.
-GREEN_LO = np.array([40, 40, 40], dtype=np.uint8)
-GREEN_HI = np.array([95, 255, 220], dtype=np.uint8)
+# Sporting green in OpenCV HSV (H 0-180). #008057 ≈ H 80, S alto.
+# H até 90 / S>=70: exclui pretos com dominância ciano (ex. camisola Adidas a preto-e-branco).
+GREEN_LO = np.array([45, 70, 40], dtype=np.uint8)
+GREEN_HI = np.array([90, 255, 200], dtype=np.uint8)
 WHITE_LO = np.array([0, 0, 180], dtype=np.uint8)
 WHITE_HI = np.array([180, 50, 255], dtype=np.uint8)
+
+# Produção: verde no tronco é requisito, não um bónus opcional.
+SPORTING_KIT_HARD = 8.0  # g >= 8 % no peito
+SPORTING_KIT_WEAK = 4.0  # verde residual; só com metadados Commons "Sporting CP"
+
+_SPORTING_HINT = re.compile(
+    r"sporting\s+c\.?\s*p\b|sporting\s+clube\s+de\s+portugal",
+    re.IGNORECASE,
+)
+_HTML_TAG = re.compile(r"<[^>]+>")
 
 
 @dataclass
@@ -84,9 +96,11 @@ def _kit_bonus(bgr: np.ndarray, face: DetectedFace | None) -> float:
         torso = bgr[int(h * 0.35) : int(h * 0.75), int(w * 0.2) : int(w * 0.8)]
     else:
         y0 = min(h - 1, face.box.y + face.box.h)
-        y1 = min(h, y0 + max(int(face.box.h * 1.6), 40))
-        x0 = max(0, face.box.x - int(face.box.w * 0.2))
-        x1 = min(w, face.box.x + face.box.w + int(face.box.w * 0.2))
+        y1 = min(h, y0 + max(int(face.box.h * 1.25), 40))
+        x0 = max(0, face.box.x + int(face.box.w * 0.08))
+        x1 = min(w, face.box.x + face.box.w - int(face.box.w * 0.08))
+        if x1 <= x0:
+            x0, x1 = max(0, face.box.x), min(w, face.box.x + face.box.w)
         torso = bgr[y0:y1, x0:x1]
     if torso.size < 50:
         return 0.0
@@ -105,12 +119,37 @@ def _kit_bonus(bgr: np.ndarray, face: DetectedFace | None) -> float:
     return score
 
 
+def hint_says_sporting(text: str | None) -> bool:
+    """Título/descrição Commons fala claramente em Sporting CP."""
+    if not text:
+        return False
+    plain = _HTML_TAG.sub(" ", text)
+    return bool(_SPORTING_HINT.search(plain))
+
+
+def kit_is_sporting(
+    kit_score: float,
+    *,
+    commons_hint: str | None = None,
+) -> bool:
+    """Verde no tronco é obrigatório. Metadados Commons só ajudam se o detector for fraco."""
+    if kit_score <= 0.0:
+        return False
+    if kit_score >= SPORTING_KIT_HARD:
+        return True
+    if kit_score >= SPORTING_KIT_WEAK and hint_says_sporting(commons_hint):
+        return True
+    return False
+
+
 def score_image(
     path: Path,
     *,
     model_path: Path | None = None,
     min_side: int = 240,
     player=None,
+    require_sporting_kit: bool = True,
+    commons_hint: str | None = None,
 ) -> ImageScore:
     img = _decode(path)
     if img is None:
@@ -183,8 +222,12 @@ def score_image(
         kit = _kit_bonus(img, dom)
         breakdown["kit"] = kit
         total += kit
+        if require_sporting_kit and not kit_is_sporting(kit, commons_hint=commons_hint):
+            reasons.append("not_sporting_kit")
     else:
         breakdown["face_detected"] = 0.0
+        if require_sporting_kit:
+            reasons.append("not_sporting_kit")
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     text_ratio = _textish_ratio(gray)
@@ -233,17 +276,32 @@ def score_image(
     )
 
 
+def _commons_hint_from_meta(meta: object) -> str | None:
+    attr = getattr(meta, "attribution", None)
+    if not isinstance(attr, dict):
+        return None
+    parts = [str(v) for v in attr.values() if v]
+    return " ".join(parts) if parts else None
+
+
 def rank_candidates(
     paths_and_meta: list[tuple[Path, object]],
     *,
     model_path: Path | None = None,
     min_score: float = 35.0,
     player=None,
+    require_sporting_kit: bool = True,
 ) -> list[tuple[object, ImageScore]]:
     """Ordena candidatos aceites (melhor primeiro). Rejeitados ficam de fora."""
     ranked: list[tuple[object, ImageScore]] = []
     for path, meta in paths_and_meta:
-        sc = score_image(path, model_path=model_path, player=player)
+        sc = score_image(
+            path,
+            model_path=model_path,
+            player=player,
+            require_sporting_kit=require_sporting_kit,
+            commons_hint=_commons_hint_from_meta(meta),
+        )
         log.info(
             "Candidato %s: score=%.1f reject=%s",
             path.name,
